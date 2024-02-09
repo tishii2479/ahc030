@@ -4,6 +4,7 @@ use std::io::{Stdin, Write};
 use proconio::*;
 pub struct Interactor {
     source: proconio::source::line::LineSource<std::io::BufReader<Stdin>>,
+    pub total_cost: f64,
 }
 
 impl Interactor {
@@ -12,6 +13,7 @@ impl Interactor {
             source: proconio::source::line::LineSource::new(std::io::BufReader::new(
                 std::io::stdin(),
             )),
+            total_cost: 0.,
         }
     }
 
@@ -23,6 +25,30 @@ impl Interactor {
             minos.push(mino);
         }
         Input { n, m, eps, minos }
+    }
+
+    pub fn output_query(&mut self, s: &Vec<(usize, usize)>) -> i64 {
+        print!("q {}", s.len());
+        for (i, j) in s {
+            print!(" {} {}", i, j);
+        }
+        println!();
+        self.flush();
+        self.total_cost += 1. / (s.len() as f64).sqrt();
+
+        input! { from &mut self.source, x: i64 }
+        x
+    }
+
+    pub fn output_answer(&mut self, s: &Vec<(usize, usize)>) -> bool {
+        print!("a {}", s.len());
+        for (i, j) in s {
+            print!(" {} {}", i, j);
+        }
+        println!();
+        self.flush();
+        input! { from &mut self.source, t: usize }
+        t == 1
     }
 
     fn flush(&self) {
