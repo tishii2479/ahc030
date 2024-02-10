@@ -111,6 +111,17 @@ fn get_mino_range(minos: &Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
     ranges
 }
 
+fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
+    let Some(answer) = answer else { return 0. };
+    let mut err = 0.;
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            err += (v[i][j] - answer.v[i][j] as f64).powf(2.);
+        }
+    }
+    err
+}
+
 fn investigate(
     interactor: &mut Interactor,
     input: &Input,
@@ -120,27 +131,26 @@ fn investigate(
     let mut c = vec![vec![0; input.n]; input.n];
     let mut queries = Vec::with_capacity((input.n - k).pow(2));
 
-    for i in 0..=input.n - k {
-        for j in 0..=input.n - k {
-            let mut s = Vec::with_capacity(k * k);
-            for ni in i..i + k {
-                for nj in j..j + k {
-                    s.push((ni, nj));
-                }
+    for _ in 0..input.n {
+        let mut s = vec![];
+        while s.len() < k * k {
+            let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
+            if !s.contains(&a) {
+                s.push(a);
             }
-            let obs_x = interactor.output_query(&s);
-            let obs_x =
-                ((obs_x as f64 - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // 補正
-            for &(ni, nj) in s.iter() {
-                x[ni][nj] += obs_x as f64 / (k * k) as f64;
-                c[ni][nj] += 1;
-            }
-            queries.push((s, obs_x));
         }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = ((obs_x - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // NOTE: 本当にあってる？
+        for &(ni, nj) in s.iter() {
+            x[ni][nj] += obs_x as f64 / (k * k) as f64;
+            c[ni][nj] += 1;
+        }
+        queries.push((s, obs_x));
     }
+
     for i in 0..input.n {
         for j in 0..input.n {
-            x[i][j] /= c[i][j] as f64;
+            x[i][j] /= c[i][j].max(1) as f64;
         }
     }
 
@@ -274,17 +284,6 @@ fn optimize_mino_pos(x: &Vec<Vec<f64>>, input: &Input) -> Vec<(usize, usize)> {
     mino_pos
 }
 
-fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
-    let Some(answer) = answer else { return 0. };
-    let mut err = 0.;
-    for i in 0..v.len() {
-        for j in 0..v[i].len() {
-            err += (v[i][j] - answer.v[i][j] as f64).powf(2.);
-        }
-    }
-    err
-}
-
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut queries = vec![];
     loop {
@@ -293,18 +292,19 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         queries.extend(_queries);
         // vis_prob(&x, &answer);
 
-        // 理想的な油田の使用状況を調べる
+        // 理想的な油田の配置を最適化
         let x = optimize_v(&x, &queries, input);
         vis_prob(&x, &answer);
 
         let x_error = x_error(&x, &answer);
         eprintln!("x_error: {:10.5}", x_error);
 
-        // ミノの位置を探索
+        // ミノの配置を最適化
         let mino_pos = optimize_mino_pos(&x, &input);
 
         let v = get_v(&mino_pos, &x, &input.minos);
         vis_v(&v, answer);
+
         let s = get_s(&v);
         interactor.output_answer(&s);
     }

@@ -40,20 +40,20 @@ fn solve(interactor: &mut Interactor, input: &Input) {
     }
 }
 
-// ランダムに調べる
+// // ランダムに調べる
 // for _ in 0..input.n * input.n {
 //     let mut s = vec![];
 //     while s.len() < k * k {
 //         let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
-//         if s.contains(&a) {
+//         if !s.contains(&a) {
 //             s.push(a);
 //         }
 //     }
-//     let nx = interactor.output_query(&s);
-//     let nx = ((nx as f64 - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // 補正
-//     for (ni, nj) in s {
-
-//             x[ni][nj] += nx as f64 / (k * k) as f64;
-//             c[ni][nj] += 1;
+//     let obs_x = interactor.output_query(&s) as f64;
+//     let obs_x = ((obs_x - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // 補正
+//     for &(ni, nj) in s.iter() {
+//         x[ni][nj] += obs_x as f64 / (k * k) as f64;
+//         c[ni][nj] += 1;
 //     }
+//     queries.push((s, obs_x));
 // }

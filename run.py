@@ -101,15 +101,16 @@ class Runner:
 
     def evaluate_relative_score(
         self,
-        solver_version: str,
         benchmark_solver_version: str,
         columns: Optional[List[str]] = None,
         eval_items: List[str] = ["score"],
     ) -> pd.DataFrame:
-        self.logger.info(f"Comparing {solver_version} -> {benchmark_solver_version}")
+        self.logger.info(
+            f"Comparing {self.solver_version} -> {benchmark_solver_version}"
+        )
         database_df = pd.read_csv(self.database_csv)
         score_df = database_df[
-            database_df.solver_version == solver_version
+            database_df.solver_version == self.solver_version
         ].reset_index(drop=True)
         benchmark_df = database_df[
             database_df.solver_version == benchmark_solver_version
@@ -156,7 +157,7 @@ class Runner:
             database_df[~database_df.solver_version.str.startswith("optuna")]
             .groupby("solver_version")[["relative_score", "score"]]
             .mean()
-            .sort_values(by="relative_score", ascending=False)[:30]
+            .sort_values(by="relative_score")[:30]
         )
 
         return database_df
@@ -243,7 +244,9 @@ if __name__ == "__main__":
     if args.list_solver:
         runner.list_solvers()
     elif args.eval:
-        runner.evaluate_absolute_score()
+        runner.evaluate_relative_score(
+            benchmark_solver_version=args.benchmark_solver_version
+        )
     else:
         subprocess.run("cargo build --features local --release", shell=True)
         subprocess.run(
@@ -254,4 +257,6 @@ if __name__ == "__main__":
             for seed in range(args.case_num)
         ]
         runner.run(cases=cases, ignore=args.ignore, verbose=args.verbose)
-        runner.evaluate_absolute_score()
+        runner.evaluate_relative_score(
+            benchmark_solver_version=args.benchmark_solver_version
+        )
