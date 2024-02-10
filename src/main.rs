@@ -18,20 +18,24 @@ macro_rules! eprintln {
     ($($_:tt)*) => {};
 }
 
-fn investigate(interactor: &mut Interactor, input: &Input) -> Vec<(Vec<(usize, usize)>, f64)> {
-    let k = 3;
+fn investigate(
+    k: usize,
+    query_count: usize,
+    interactor: &mut Interactor,
+    input: &Input,
+) -> Vec<(Vec<(usize, usize)>, f64)> {
     let mut queries = Vec::with_capacity((input.n - k).pow(2));
 
-    for _ in 0..input.n {
+    for _ in 0..query_count {
         let mut s = vec![];
-        while s.len() < k * k {
+        while s.len() < k {
             let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
             if !s.contains(&a) {
                 s.push(a);
             }
         }
         let obs_x = interactor.output_query(&s) as f64;
-        let obs_x = ((obs_x - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // NOTE: 本当にあってる？
+        let obs_x = ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // NOTE: 本当にあってる？
         queries.push((s, obs_x));
     }
 
@@ -76,7 +80,9 @@ fn optimize_mino_pos(
         let cur_score = calc_score(queries, &mino_pos, &input.minos, input.n);
         let mut mino_is = vec![];
         let mut prev_mino_poss = vec![];
-        // 近傍の工夫
+
+        // TODO: 近傍の工夫
+        // 有効な場所を多くする
         for _ in 0..2 {
             let mino_i = rnd::gen_range(0, input.m);
             let prev_mino_pos = mino_pos[mino_i];
@@ -111,9 +117,12 @@ fn optimize_mino_pos(
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut queries = vec![];
+    let k = input.n;
+    let query_count = input.n;
     loop {
         // 情報を集める
-        let _queries = investigate(interactor, input);
+        let query_count = query_count.min(input.n * input.n * 2 - interactor.query_count);
+        let _queries = investigate(k, query_count, interactor, input);
         queries.extend(_queries);
 
         // ミノの配置を最適化

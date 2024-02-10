@@ -7,7 +7,7 @@ use proconio::*;
 pub struct Interactor {
     source: proconio::source::line::LineSource<std::io::BufReader<Stdin>>,
     pub total_cost: f64,
-    query_count: usize,
+    pub query_count: usize,
     query_limit: usize,
 }
 
