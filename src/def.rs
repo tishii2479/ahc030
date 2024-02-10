@@ -1,5 +1,3 @@
-use proconio::*;
-
 pub struct Input {
     pub n: usize,
     pub m: usize,

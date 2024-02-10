@@ -6,15 +6,16 @@ use crate::def::*;
 use crate::interactor::*;
 use crate::util::*;
 
-fn vis_answer(s: &Vec<(usize, usize)>, input: &Input) {
-    for i in 0..input.n {
-        for j in 0..input.n {
-            println!("#c {} {} white", i, j);
-        }
-    }
-    for (i, j) in s {
-        println!("#c {} {} red", i, j);
-    }
+#[macro_export]
+#[cfg(not(feature = "local"))]
+macro_rules! eprint {
+    ($($_:tt)*) => {};
+}
+
+#[macro_export]
+#[cfg(not(feature = "local"))]
+macro_rules! eprintln {
+    ($($_:tt)*) => {};
 }
 
 fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
@@ -31,9 +32,9 @@ fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
                 255 - color_value
             );
             if has_answer && answer.as_ref().unwrap().v[i][j] > 0 {
-                eprint!("\x1b[48;2;220;220;220m");
+                eprint!("\x1b[48;2;210;100;100m");
             }
-            eprint!("{:6.4}", x[i][j]);
+            eprint!("{:5.3}", x[i][j]);
             eprint!("\x1b[m ");
         }
         eprintln!();
@@ -41,7 +42,8 @@ fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
-    let k = 3;
+    // 情報を集める
+    let k = 4;
     let mut x = vec![vec![0.; input.n]; input.n];
     let mut c = vec![vec![0; input.n]; input.n];
     for i in 0..=input.n - k {
@@ -70,7 +72,84 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
 
     vis_prob(&x, &answer);
 
-    interactor.output_answer(&vec![(0, 0)]);
+    // ミノの位置を探索
+    let mino_range = calc_mino_range(&input.minos);
+    let mut mino_pos = vec![];
+    for k in 0..input.m {
+        mino_pos.push((
+            rnd::gen_range(0, input.n - mino_range[k].0),
+            rnd::gen_range(0, input.n - mino_range[k].1),
+        ));
+    }
+
+    fn calc_v(
+        mino_pos: &Vec<(usize, usize)>,
+        x: &Vec<Vec<f64>>,
+        minos: &Vec<Vec<(usize, usize)>>,
+    ) -> Vec<Vec<usize>> {
+        let mut v = vec![vec![0; x.len()]; x[0].len()];
+        for (pos, mino) in std::iter::zip(mino_pos, minos) {
+            for (i, j) in mino {
+                v[pos.0 + i][pos.1 + j] += 1;
+            }
+        }
+        v
+    }
+
+    fn calc_score(
+        mino_pos: &Vec<(usize, usize)>,
+        x: &Vec<Vec<f64>>,
+        minos: &Vec<Vec<(usize, usize)>>,
+    ) -> f64 {
+        let v = calc_v(mino_pos, x, minos);
+
+        let mut score = 0.;
+        for i in 0..x.len() {
+            for j in 0..x[i].len() {
+                // TODO: 0の時はペナルティを足す
+                score += v[i][j] as f64 * x[i][j];
+            }
+        }
+        score
+    }
+
+    for _ in 0..10000 {
+        let cur_score = calc_score(&mino_pos, &x, &input.minos);
+        let mino_i = rnd::gen_range(0, input.m);
+        let prev_mino_pos = mino_pos[mino_i];
+        // TODO: 近傍の工夫
+        mino_pos[mino_i] = (
+            rnd::gen_range(0, input.n - mino_range[mino_i].0),
+            rnd::gen_range(0, input.n - mino_range[mino_i].1),
+        );
+        let new_score = calc_score(&mino_pos, &x, &input.minos);
+        if new_score > cur_score {
+            // adopt
+        } else {
+            mino_pos[mino_i] = prev_mino_pos;
+        }
+    }
+
+    let v = calc_v(&mino_pos, &x, &input.minos);
+    let mut s = vec![];
+    for i in 0..input.n {
+        for j in 0..input.n {
+            if v[i][j] > 0 {
+                s.push((i, j));
+            }
+        }
+    }
+    interactor.output_answer(&s);
+}
+
+fn calc_mino_range(minos: &Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
+    let mut ranges = vec![];
+    for mino in minos {
+        let i_max = mino.iter().map(|&x| x.0).max().unwrap();
+        let j_max = mino.iter().map(|&x| x.1).max().unwrap();
+        ranges.push((i_max, j_max));
+    }
+    ranges
 }
 
 fn main() {
