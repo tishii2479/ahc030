@@ -1,59 +1,113 @@
-fn solve(interactor: &mut Interactor, input: &Input) {
-    const T: usize = 1;
-    let mut answer_s = vec![];
-    loop {
-        for i in 0..input.n {
-            let l = (0..input.n + 1)
-                .filter(|&j| j == input.n || (j % 3 == 0 && j != input.n - 1))
-                .collect::<Vec<usize>>();
-            for k in 0..l.len() - 1 {
-                let mut xs = vec![];
-                for j in l[k]..l[k + 1] {
-                    let mut a = 0;
-                    for _ in 0..T {
-                        let s = (l[k]..l[k + 1])
-                            .filter(|tj| tj != &j)
-                            .map(|tj| (i, tj))
-                            .collect::<Vec<(usize, usize)>>();
-                        let x = interactor.output_query(&s);
-                        a += x;
-                    }
-                    xs.push(a as f64 / T as f64);
-                }
-                let x_row_sum = xs.iter().sum::<f64>() / (xs.len() as f64 - 1.);
-                for j in l[k]..l[k + 1] {
-                    let approx_x = x_row_sum - xs[j - l[k]];
-                    if approx_x > 0.5 {
-                        answer_s.push((i, j));
-                    }
-                    eprint!("{:8.5} ", approx_x);
-                }
+fn optimize_v(queries: &Vec<(Vec<(usize, usize)>, f64)>, input: &Input) -> Vec<Vec<f64>> {
+    let mut v = vec![vec![0.; input.n]; input.n];
+
+    // 初期解を作る
+    let poly_count = input.minos.iter().map(|mino| mino.len()).sum::<usize>();
+    for _ in 0..poly_count {
+        v[rnd::gen_range(0, input.n)][rnd::gen_range(0, input.n)] += 1.;
+    }
+
+    fn calc_score(v: &Vec<Vec<f64>>, queries: &Vec<(Vec<(usize, usize)>, f64)>) -> f64 {
+        let mut score = 0.;
+        for (s, obs_x) in queries {
+            let mut x = 0.;
+            for &(i, j) in s {
+                x += v[i][j];
             }
-            eprintln!();
+            score += (obs_x - x).powf(2.);
         }
-        eprintln!();
-        vis_answer(&answer_s, input);
-        if interactor.output_answer(&answer_s) {
-            let score = (interactor.total_cost * 1e6).round() as i64;
-            exit(score);
+        score
+    }
+
+    const ITERATION: usize = 100000;
+    for _t in 0..ITERATION {
+        let from = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
+        let r = rnd::nextf().min(v[from.0][from.1]);
+        let cur_score = calc_score(&v, queries);
+        let to = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
+        v[from.0][from.1] -= r;
+        v[to.0][to.1] += r;
+        let new_score = calc_score(&v, queries);
+
+        if new_score < cur_score {
+            // adopt
+            // eprintln!("{:3} {:10.5} -> {:10.5}", _t, cur_score, new_score);
+        } else {
+            v[from.0][from.1] += r;
+            v[to.0][to.1] -= r;
         }
     }
+
+    v
 }
 
-// // ランダムに調べる
-// for _ in 0..input.n * input.n {
-//     let mut s = vec![];
-//     while s.len() < k * k {
-//         let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
-//         if !s.contains(&a) {
-//             s.push(a);
-//         }
-//     }
-//     let obs_x = interactor.output_query(&s) as f64;
-//     let obs_x = ((obs_x - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // 補正
-//     for &(ni, nj) in s.iter() {
-//         x[ni][nj] += obs_x as f64 / (k * k) as f64;
-//         c[ni][nj] += 1;
-//     }
-//     queries.push((s, obs_x));
-// }
+fn optimize_mino_pos2(x: &Vec<Vec<f64>>, input: &Input) -> Vec<(usize, usize)> {
+    let mino_range = get_mino_range(&input.minos);
+    let mut mino_pos = Vec::with_capacity(input.m);
+    for k in 0..input.m {
+        mino_pos.push((
+            rnd::gen_range(0, input.n - mino_range[k].0),
+            rnd::gen_range(0, input.n - mino_range[k].1),
+        ));
+    }
+
+    fn calc_score(
+        mino_pos: &Vec<(usize, usize)>,
+        x: &Vec<Vec<f64>>,
+        minos: &Vec<Vec<(usize, usize)>>,
+    ) -> f64 {
+        let v = get_v(mino_pos, minos, x.len());
+
+        let mut score = 0.;
+        for i in 0..x.len() {
+            for j in 0..x[i].len() {
+                // if v[i][j] == 0 && x[i][j] > 0.2 {
+                //     score -= x[i][j].sqrt();
+                // } else if v[i][j] > 0 {
+                //     score += x[i][j].sqrt();
+                // }
+                score += (x[i][j] - v[i][j] as f64).powf(2.);
+            }
+        }
+        score
+    }
+
+    // const START_TEMP: f64 = 1e2;
+    // const END_TEMP: f64 = 1e-2;
+    const ITERATION: usize = 100000;
+    for _t in 0..ITERATION {
+        let cur_score = calc_score(&mino_pos, &x, &input.minos);
+        let mut mino_is = vec![];
+        let mut prev_mino_poss = vec![];
+        // 近傍の工夫
+        for _ in 0..2 {
+            let mino_i = rnd::gen_range(0, input.m);
+            let prev_mino_pos = mino_pos[mino_i];
+            mino_pos[mino_i] = (
+                rnd::gen_range(0, input.n - mino_range[mino_i].0),
+                rnd::gen_range(0, input.n - mino_range[mino_i].1),
+            );
+            mino_is.push(mino_i);
+            prev_mino_poss.push(prev_mino_pos);
+        }
+        let new_score = calc_score(&mino_pos, &x, &input.minos);
+        // let progress = _t as f64 / ITERATION as f64;
+        // let temp = START_TEMP.powf(1. - progress) * END_TEMP.powf(progress);
+        // let adopt = rnd::nextf() < (-(new_score - cur_score) / temp).exp();
+        let adopt = new_score < cur_score;
+        if adopt {
+            // adopt
+            // eprintln!("{:3} {:10.5} -> {:10.5}", _t, cur_score, new_score);
+        } else {
+            for i in (0..2).rev() {
+                mino_pos[mino_is[i]] = prev_mino_poss[i];
+            }
+        }
+    }
+    eprintln!(
+        "optimize_mino_pos_error: {:10.5}",
+        calc_score(&mino_pos, x, &input.minos)
+    );
+
+    mino_pos
+}

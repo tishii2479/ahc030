@@ -55,3 +55,115 @@ pub mod time {
         }
     }
 }
+
+pub fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
+    let has_answer = answer.is_some();
+    for i in 0..x.len() {
+        for j in 0..x[i].len() {
+            let color_value = (x[i][j] * 256.).clamp(0., 255.) as usize;
+            let color = format!("#FF{:02x}{:02x}", 255 - color_value, 255 - color_value);
+            println!("#c {} {} {}", i, j, color);
+            eprint!(
+                "\x1b[38;2;{};{};{}m",
+                255,
+                255 - color_value,
+                255 - color_value
+            );
+            if has_answer {
+                let v = answer.as_ref().unwrap().v[i][j];
+                if v > 0 {
+                    let v = (130 + v * 60).clamp(0, 255);
+                    eprint!("\x1b[48;2;{};100;100m", v);
+                }
+            }
+            eprint!("{:5.3}", x[i][j]);
+            eprint!("\x1b[m ");
+        }
+        eprintln!();
+    }
+}
+
+pub fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
+    let Some(answer) = answer else { return 0. };
+    let mut err = 0.;
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            err += (v[i][j] - answer.v[i][j] as f64).powf(2.);
+        }
+    }
+    err
+}
+
+pub fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
+    let has_answer = answer.is_some();
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            if has_answer {
+                if answer.as_ref().unwrap().v[i][j] > v[i][j] {
+                    eprint!("\x1b[38;2;0;0;255m");
+                } else if answer.as_ref().unwrap().v[i][j] < v[i][j] {
+                    eprint!("\x1b[38;2;255;0;0m");
+                }
+            }
+            if v[i][j] > 0 {
+                eprint!("\x1b[48;2;0;0;255m");
+            }
+            eprint!("  {}", v[i][j]);
+            if has_answer {
+                let ans_v = answer.as_ref().unwrap().v[i][j];
+                eprint!("/{}", ans_v);
+            }
+            eprint!("\x1b[m ");
+        }
+        eprintln!();
+    }
+}
+
+pub fn get_s(v: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
+    let mut s = Vec::with_capacity(v.len() * v.len());
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            if v[i][j] > 0 {
+                s.push((i, j));
+            }
+        }
+    }
+    s
+}
+
+pub fn get_v(
+    mino_pos: &Vec<(usize, usize)>,
+    minos: &Vec<Vec<(usize, usize)>>,
+    n: usize,
+) -> Vec<Vec<usize>> {
+    let mut v = vec![vec![0; n]; n];
+    for (pos, mino) in std::iter::zip(mino_pos, minos) {
+        for (i, j) in mino {
+            v[pos.0 + i][pos.1 + j] += 1;
+        }
+    }
+    v
+}
+
+pub fn get_mino_range(minos: &Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::with_capacity(minos.len());
+    for mino in minos {
+        let i_max = mino.iter().map(|&x| x.0).max().unwrap();
+        let j_max = mino.iter().map(|&x| x.1).max().unwrap();
+        ranges.push((i_max, j_max));
+    }
+    ranges
+}
+
+pub fn error_count(v: &Vec<Vec<usize>>, answer: &Option<Answer>) -> i64 {
+    let Some(answer) = answer else { return 0 };
+    let mut error_count = 0;
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            if answer.v[i][j] != v[i][j] {
+                error_count += 1;
+            }
+        }
+    }
+    error_count
+}
