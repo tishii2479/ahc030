@@ -94,13 +94,13 @@ fn optimize_mino_pos(
 
     // const START_TEMP: f64 = 1e2;
     // const END_TEMP: f64 = 1e-2;
-    const ITERATION: usize = 100000;
+    const ITERATION: usize = 100000; // NOTE: 伸ばすと結構上がる
     for _t in 0..ITERATION {
         let mut mino_is = vec![];
         let mut prev_mino_poss = vec![];
 
         let mut score_diff = 0.;
-        let r = rnd::gen_range(2, 4);
+        let r = rnd::gen_range(2, 4.min(input.m + 1));
 
         // TODO: 近傍の工夫
         // 有効な場所を多くする

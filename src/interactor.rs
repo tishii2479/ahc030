@@ -4,6 +4,7 @@ use std::io::{Stdin, Write};
 use crate::util::*;
 
 use proconio::*;
+
 pub struct Interactor {
     source: proconio::source::line::LineSource<std::io::BufReader<Stdin>>,
     pub total_cost: f64,
