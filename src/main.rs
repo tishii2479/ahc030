@@ -47,7 +47,6 @@ fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
 
 fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
     let has_answer = answer.is_some();
-    let mut error_count = 0;
     for i in 0..v.len() {
         for j in 0..v[i].len() {
             if has_answer {
@@ -64,15 +63,11 @@ fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
             if has_answer {
                 let ans_v = answer.as_ref().unwrap().v[i][j];
                 eprint!("/{}", ans_v);
-                if ans_v != v[i][j] {
-                    error_count += 1;
-                }
             }
             eprint!("\x1b[m ");
         }
         eprintln!();
     }
-    eprintln!("error_count: {}", error_count);
 }
 
 fn get_s(v: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
@@ -122,13 +117,21 @@ fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
     err
 }
 
-fn investigate(
-    interactor: &mut Interactor,
-    input: &Input,
-) -> (Vec<Vec<f64>>, Vec<(Vec<(usize, usize)>, f64)>) {
+fn error_count(v: &Vec<Vec<usize>>, answer: &Option<Answer>) -> i64 {
+    let Some(answer) = answer else { return 0 };
+    let mut error_count = 0;
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            if answer.v[i][j] != v[i][j] {
+                error_count += 1;
+            }
+        }
+    }
+    error_count
+}
+
+fn investigate(interactor: &mut Interactor, input: &Input) -> Vec<(Vec<(usize, usize)>, f64)> {
     let k = 3;
-    let mut x = vec![vec![0.; input.n]; input.n];
-    let mut c = vec![vec![0; input.n]; input.n];
     let mut queries = Vec::with_capacity((input.n - k).pow(2));
 
     for _ in 0..input.n {
@@ -141,43 +144,19 @@ fn investigate(
         }
         let obs_x = interactor.output_query(&s) as f64;
         let obs_x = ((obs_x - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // NOTE: 本当にあってる？
-        for &(ni, nj) in s.iter() {
-            x[ni][nj] += obs_x as f64 / (k * k) as f64;
-            c[ni][nj] += 1;
-        }
         queries.push((s, obs_x));
     }
 
-    for i in 0..input.n {
-        for j in 0..input.n {
-            x[i][j] /= c[i][j].max(1) as f64;
-        }
-    }
-
-    (x, queries)
+    queries
 }
 
-fn optimize_v(
-    x: &Vec<Vec<f64>>,
-    queries: &Vec<(Vec<(usize, usize)>, f64)>,
-    input: &Input,
-) -> Vec<Vec<f64>> {
+fn optimize_v(queries: &Vec<(Vec<(usize, usize)>, f64)>, input: &Input) -> Vec<Vec<f64>> {
     let mut v = vec![vec![0.; input.n]; input.n];
 
     // 初期解を作る
-    // NOTE: 局所解にはまる原因になるかも
-    let mut cand = Vec::with_capacity(input.n * input.n);
-    for i in 0..input.n {
-        for j in 0..input.n {
-            cand.push((x[i][j], (i, j)));
-        }
-    }
-    cand.sort_by(|a, b| b.partial_cmp(a).unwrap());
-
-    // NOTE: 重複を考慮していない
     let poly_count = input.minos.iter().map(|mino| mino.len()).sum::<usize>();
-    for i in 0..poly_count {
-        v[cand[i].1 .0][cand[i].1 .1] += 1.;
+    for _ in 0..poly_count {
+        v[rnd::gen_range(0, input.n)][rnd::gen_range(0, input.n)] += 1.;
     }
 
     fn calc_score(v: &Vec<Vec<f64>>, queries: &Vec<(Vec<(usize, usize)>, f64)>) -> f64 {
@@ -288,22 +267,23 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut queries = vec![];
     loop {
         // 情報を集める
-        let (x, _queries) = investigate(interactor, input);
+        let _queries = investigate(interactor, input);
         queries.extend(_queries);
         // vis_prob(&x, &answer);
 
         // 理想的な油田の配置を最適化
-        let x = optimize_v(&x, &queries, input);
+        let x = optimize_v(&queries, input);
         vis_prob(&x, &answer);
 
-        let x_error = x_error(&x, &answer);
-        eprintln!("x_error: {:10.5}", x_error);
+        eprintln!("x_error: {:10.5}", x_error(&x, &answer));
 
         // ミノの配置を最適化
         let mino_pos = optimize_mino_pos(&x, &input);
 
         let v = get_v(&mino_pos, &x, &input.minos);
         vis_v(&v, answer);
+
+        eprintln!("error_count: {}", error_count(&v, answer));
 
         let s = get_s(&v);
         interactor.output_answer(&s);
