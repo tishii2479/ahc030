@@ -1,5 +1,5 @@
 /target
-/tools
+/tools/*
 vis.html
 /log
 !/tools/src
