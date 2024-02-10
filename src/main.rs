@@ -23,7 +23,7 @@ fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
     for i in 0..x.len() {
         for j in 0..x[i].len() {
             let color_value = (x[i][j] * 256.).clamp(0., 255.) as usize;
-            let color = format!("#FF{:x}{:x}", 255 - color_value, 255 - color_value);
+            let color = format!("#FF{:02x}{:02x}", 255 - color_value, 255 - color_value);
             println!("#c {} {} {}", i, j, color);
             eprint!(
                 "\x1b[38;2;{};{};{}m",
@@ -47,6 +47,7 @@ fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
 
 fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
     let has_answer = answer.is_some();
+    let mut error_count = 0;
     for i in 0..v.len() {
         for j in 0..v[i].len() {
             if has_answer {
@@ -61,12 +62,17 @@ fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
             }
             eprint!("  {}", v[i][j]);
             if has_answer {
-                eprint!("/{}", answer.as_ref().unwrap().v[i][j]);
+                let ans_v = answer.as_ref().unwrap().v[i][j];
+                eprint!("/{}", ans_v);
+                if ans_v != v[i][j] {
+                    error_count += 1;
+                }
             }
             eprint!("\x1b[m ");
         }
         eprintln!();
     }
+    eprintln!("error_count: {}", error_count);
 }
 
 fn get_s(v: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
@@ -113,24 +119,6 @@ fn investigate(
     let mut x = vec![vec![0.; input.n]; input.n];
     let mut c = vec![vec![0; input.n]; input.n];
     let mut queries = Vec::with_capacity((input.n - k).pow(2));
-
-    // ランダムに調べる
-    // for _ in 0..input.n {
-    //     let mut s = vec![];
-    //     while s.len() < k * k {
-    //         let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
-    //         if !s.contains(&a) {
-    //             s.push(a);
-    //         }
-    //     }
-    //     let obs_x = interactor.output_query(&s);
-    //     let obs_x = ((obs_x as f64 - (k * k) as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // 補正
-    //     for &(ni, nj) in s.iter() {
-    //         x[ni][nj] += obs_x as f64 / (k * k) as f64;
-    //         c[ni][nj] += 1;
-    //     }
-    //     queries.push((s, obs_x));
-    // }
 
     for i in 0..=input.n - k {
         for j in 0..=input.n - k {
@@ -194,7 +182,8 @@ fn optimize_v(
         score
     }
 
-    for _t in 0..1000000 {
+    const ITERATION: usize = 100000;
+    for _t in 0..ITERATION {
         let from = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
         let r = rnd::nextf().min(v[from.0][from.1]);
         let cur_score = calc_score(&v, queries);
@@ -246,54 +235,86 @@ fn optimize_mino_pos(x: &Vec<Vec<f64>>, input: &Input) -> Vec<(usize, usize)> {
         score
     }
 
-    // const START_TEMP: f64 = 1e-5;
-    // const END_TEMP: f64 = 1e-6;
+    // const START_TEMP: f64 = 1e2;
+    // const END_TEMP: f64 = 1e-2;
     const ITERATION: usize = 100000;
     for _t in 0..ITERATION {
         let cur_score = calc_score(&mino_pos, &x, &input.minos);
-        let mino_i = rnd::gen_range(0, input.m);
-        let prev_mino_pos = mino_pos[mino_i];
-        mino_pos[mino_i] = (
-            rnd::gen_range(0, input.n - mino_range[mino_i].0),
-            rnd::gen_range(0, input.n - mino_range[mino_i].1),
-        );
+        let mut mino_is = vec![];
+        let mut prev_mino_poss = vec![];
+        for _ in 0..2 {
+            let mino_i = rnd::gen_range(0, input.m);
+            let prev_mino_pos = mino_pos[mino_i];
+            mino_pos[mino_i] = (
+                rnd::gen_range(0, input.n - mino_range[mino_i].0),
+                rnd::gen_range(0, input.n - mino_range[mino_i].1),
+            );
+            mino_is.push(mino_i);
+            prev_mino_poss.push(prev_mino_pos);
+        }
         let new_score = calc_score(&mino_pos, &x, &input.minos);
         // let progress = _t as f64 / ITERATION as f64;
         // let temp = START_TEMP.powf(1. - progress) * END_TEMP.powf(progress);
         // let adopt = rnd::nextf() < (-(new_score - cur_score) / temp).exp();
-        if new_score < cur_score {
+        let adopt = new_score < cur_score;
+        if adopt {
             // adopt
             // eprintln!("{:3} {:10.5} -> {:10.5}", _t, cur_score, new_score);
         } else {
-            mino_pos[mino_i] = prev_mino_pos;
+            for i in (0..2).rev() {
+                mino_pos[mino_is[i]] = prev_mino_poss[i];
+            }
         }
     }
+    eprintln!(
+        "optimize_mino_pos_error: {:10.5}",
+        calc_score(&mino_pos, x, &input.minos)
+    );
 
     mino_pos
 }
 
+fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
+    let Some(answer) = answer else { return 0. };
+    let mut err = 0.;
+    for i in 0..v.len() {
+        for j in 0..v[i].len() {
+            err += (v[i][j] - answer.v[i][j] as f64).powf(2.);
+        }
+    }
+    err
+}
+
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
-    // 情報を集める
-    let (x, queries) = investigate(interactor, input);
-    vis_prob(&x, &answer);
+    let mut queries = vec![];
+    loop {
+        // 情報を集める
+        let (x, _queries) = investigate(interactor, input);
+        queries.extend(_queries);
+        // vis_prob(&x, &answer);
 
-    // 理想的な油田の使用状況を調べる
-    let x = optimize_v(&x, &queries, input);
-    vis_prob(&x, &answer);
+        // 理想的な油田の使用状況を調べる
+        let x = optimize_v(&x, &queries, input);
+        vis_prob(&x, &answer);
 
-    // ミノの位置を探索
-    let mino_pos = optimize_mino_pos(&x, &input);
+        let x_error = x_error(&x, &answer);
+        eprintln!("x_error: {:10.5}", x_error);
 
-    let v = get_v(&mino_pos, &x, &input.minos);
-    vis_v(&v, answer);
-    let s = get_s(&v);
-    interactor.output_answer(&s);
+        // ミノの位置を探索
+        let mino_pos = optimize_mino_pos(&x, &input);
+
+        let v = get_v(&mino_pos, &x, &input.minos);
+        vis_v(&v, answer);
+        let s = get_s(&v);
+        interactor.output_answer(&s);
+    }
 }
 
 fn main() {
     time::start_clock();
     let mut interactor = Interactor::new();
     let input = interactor.read_input();
+    eprintln!("m = {}, eps = {:.2}", input.m, input.eps);
     let answer = if cfg!(feature = "local") {
         Some(interactor.read_answer(&input))
     } else {

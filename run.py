@@ -4,6 +4,7 @@ import dataclasses
 import datetime
 import json
 import logging
+import os
 import subprocess
 from logging import FileHandler, StreamHandler, getLogger
 from typing import List, Optional, Type
@@ -63,7 +64,8 @@ class Runner:
         )
         df = pd.DataFrame(list(map(lambda x: vars(x), results)))
         if not ignore:
-            df.to_csv(self.database_csv, mode="a", index=False)
+            add_header = not os.path.exists(self.database_csv)
+            df.to_csv(self.database_csv, mode="a", index=False, header=add_header)
 
         return df
 

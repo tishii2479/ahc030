@@ -95,6 +95,11 @@ impl Interactor {
     fn check_query_limit(&self) {
         if self.query_count >= self.query_limit {
             eprintln!("failed to determine...");
+            eprintln!(
+                "result: {{\"score\": {:.6}, \"duration\": {:.4}}}",
+                1e3,
+                time::elapsed_seconds(),
+            );
             std::process::exit(0);
         }
     }
