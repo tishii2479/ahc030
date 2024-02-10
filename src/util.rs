@@ -59,44 +59,6 @@ pub mod time {
     }
 }
 
-pub fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
-    let has_answer = answer.is_some();
-    for i in 0..x.len() {
-        for j in 0..x[i].len() {
-            let color_value = (x[i][j] * 256.).clamp(0., 255.) as usize;
-            let color = format!("#FF{:02x}{:02x}", 255 - color_value, 255 - color_value);
-            println!("#c {} {} {}", i, j, color);
-            eprint!(
-                "\x1b[38;2;{};{};{}m",
-                255,
-                255 - color_value,
-                255 - color_value
-            );
-            if has_answer {
-                let v = answer.as_ref().unwrap().v[i][j];
-                if v > 0 {
-                    let v = (130 + v * 60).clamp(0, 255);
-                    eprint!("\x1b[48;2;{};100;100m", v);
-                }
-            }
-            eprint!("{:5.3}", x[i][j]);
-            eprint!("\x1b[m ");
-        }
-        eprintln!();
-    }
-}
-
-pub fn x_error(v: &Vec<Vec<f64>>, answer: &Option<Answer>) -> f64 {
-    let Some(answer) = answer else { return 0. };
-    let mut err = 0.;
-    for i in 0..v.len() {
-        for j in 0..v[i].len() {
-            err += (v[i][j] - answer.v[i][j] as f64).powf(2.);
-        }
-    }
-    err
-}
-
 pub fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
     let has_answer = answer.is_some();
     for i in 0..v.len() {
