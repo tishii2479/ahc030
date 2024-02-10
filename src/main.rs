@@ -42,6 +42,30 @@ fn investigate(
     queries
 }
 
+fn toggle_mino(
+    query_cache: &mut Vec<f64>,
+    queries: &Vec<(Vec<(usize, usize)>, f64)>,
+    query_indices: &Vec<Vec<Vec<usize>>>,
+    mino: &Vec<(usize, usize)>,
+    mino_pos: (usize, usize),
+    turn_on: bool,
+) -> f64 {
+    let mut score_diff = 0.;
+    for &(_i, _j) in mino.iter() {
+        let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
+        for &q_i in query_indices[i][j].iter() {
+            score_diff -= (query_cache[q_i] - queries[q_i].1).powf(2.);
+            if turn_on {
+                query_cache[q_i] += 1.;
+            } else {
+                query_cache[q_i] -= 1.;
+            }
+            score_diff += (query_cache[q_i] - queries[q_i].1).powf(2.);
+        }
+    }
+    score_diff
+}
+
 fn optimize_mino_pos(
     queries: &Vec<(Vec<(usize, usize)>, f64)>,
     input: &Input,
@@ -55,7 +79,7 @@ fn optimize_mino_pos(
         ));
     }
 
-    let mut v = get_v(&mino_pos, &input.minos, input.n);
+    let v = get_v(&mino_pos, &input.minos, input.n);
     let mut query_cache = vec![0.; queries.len()];
     let mut query_indices = vec![vec![vec![]; input.n]; input.n];
 
@@ -68,36 +92,6 @@ fn optimize_mino_pos(
         score += (query_cache[q_i] - x).powf(2.);
     }
 
-    fn toggle_mino(
-        v: &mut Vec<Vec<usize>>,
-        query_cache: &mut Vec<f64>,
-        queries: &Vec<(Vec<(usize, usize)>, f64)>,
-        query_indices: &Vec<Vec<Vec<usize>>>,
-        mino: &Vec<(usize, usize)>,
-        mino_pos: (usize, usize),
-        turn_on: bool,
-    ) -> f64 {
-        let mut score_diff = 0.;
-        for &(_i, _j) in mino.iter() {
-            let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
-            if turn_on {
-                v[i][j] += 1;
-            } else {
-                v[i][j] -= 1;
-            }
-            for &q_i in query_indices[i][j].iter() {
-                score_diff -= (query_cache[q_i] - queries[q_i].1).powf(2.);
-                if turn_on {
-                    query_cache[q_i] += 1.;
-                } else {
-                    query_cache[q_i] -= 1.;
-                }
-                score_diff += (query_cache[q_i] - queries[q_i].1).powf(2.);
-            }
-        }
-        score_diff
-    }
-
     // const START_TEMP: f64 = 1e2;
     // const END_TEMP: f64 = 1e-2;
     const ITERATION: usize = 100000;
@@ -106,10 +100,11 @@ fn optimize_mino_pos(
         let mut prev_mino_poss = vec![];
 
         let mut score_diff = 0.;
+        let r = rnd::gen_range(2, 4);
 
         // TODO: 近傍の工夫
         // 有効な場所を多くする
-        for _ in 0..2 {
+        for _ in 0..r {
             let mino_i = rnd::gen_range(0, input.m);
             let prev_mino_pos = mino_pos[mino_i];
             mino_pos[mino_i] = (
@@ -120,7 +115,6 @@ fn optimize_mino_pos(
             prev_mino_poss.push(prev_mino_pos);
 
             score_diff += toggle_mino(
-                &mut v,
                 &mut query_cache,
                 queries,
                 &query_indices,
@@ -129,7 +123,6 @@ fn optimize_mino_pos(
                 false,
             );
             score_diff += toggle_mino(
-                &mut v,
                 &mut query_cache,
                 queries,
                 &query_indices,
@@ -143,14 +136,12 @@ fn optimize_mino_pos(
         // let adopt = rnd::nextf() < (-(new_score - cur_score) / temp).exp();
         let adopt = score_diff < 0.;
         if adopt {
-            // adopt
             // eprintln!("{:3} {:10.5} -> {:10.5}", _t, score, score + score_diff);
             score += score_diff;
         } else {
-            for i in (0..2).rev() {
+            for i in (0..r).rev() {
                 let mino_i = mino_is[i];
                 score_diff += toggle_mino(
-                    &mut v,
                     &mut query_cache,
                     queries,
                     &query_indices,
@@ -160,7 +151,6 @@ fn optimize_mino_pos(
                 );
                 mino_pos[mino_i] = prev_mino_poss[i];
                 score_diff += toggle_mino(
-                    &mut v,
                     &mut query_cache,
                     queries,
                     &query_indices,

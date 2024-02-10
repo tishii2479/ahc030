@@ -36,6 +36,7 @@ class Runner:
         solver_version: str,
         database_csv: str,
         log_file: str,
+        input_csv: Optional[str] = None,
         verbose: int = 10,
     ) -> None:
         self.input_class = input_class
@@ -43,6 +44,7 @@ class Runner:
         self.solver_cmd = solver_cmd
         self.solver_version = solver_version
         self.database_csv = database_csv
+        self.input_csv = input_csv
         self.logger = self.setup_logger(log_file=log_file, verbose=verbose)
 
     def run_case(self, input_file: str, output_file: str) -> IResult:
@@ -76,24 +78,32 @@ class Runner:
     ) -> pd.DataFrame:
         self.logger.info(f"Evaluating absolute score: [{self.solver_version}]...")
         database_df = pd.read_csv(self.database_csv)
+        if self.input_csv is not None:
+            input_df = pd.read_csv(self.input_csv)
+            database_df = pd.merge(database_df, input_df, how="left", on="input_file")
         score_df = database_df[
             database_df.solver_version == self.solver_version
         ].reset_index(drop=True)
 
         self.logger.info(f"Raw score mean: {score_df.score.mean()}")
-        self.logger.info("Top 10 improvements:")
-        self.logger.info(score_df.sort_values(by="score", ascending=False)[:10])
-        self.logger.info("Top 10 aggravations:")
-        self.logger.info(score_df.sort_values(by="score")[:10])
+        self.logger.info("Top 20 improvements:")
+        self.logger.info(score_df.sort_values(by="score", ascending=False)[:20])
+        self.logger.info("Top 20 aggravations:")
+        self.logger.info(score_df.sort_values(by="score")[:20])
 
         if columns is not None:
             assert 1 <= len(columns) <= 2
+            for column in columns:
+                score_df[f"{column}_cut"] = pd.cut(score_df[column], 5)
+            cut_columns = list(map(lambda col: f"{col}_cut", columns))
             if len(columns) == 1:
-                self.logger.info(score_df.groupby(columns[0])["score"].mean())
+                self.logger.info(
+                    score_df.groupby(f"{columns[0]}_cut")["relative_score"].mean()
+                )
             elif len(columns) == 2:
                 self.logger.info(
-                    score_df[eval_items + columns].pivot_table(
-                        index=columns[0], columns=columns[1]
+                    score_df[eval_items + cut_columns].pivot_table(
+                        index=f"{columns[0]}_cut", columns=f"{columns[1]}_cut"
                     )
                 )
 
@@ -103,12 +113,15 @@ class Runner:
         self,
         benchmark_solver_version: str,
         columns: Optional[List[str]] = None,
-        eval_items: List[str] = ["score"],
+        eval_items: List[str] = ["score", "relative_score"],
     ) -> pd.DataFrame:
         self.logger.info(
             f"Comparing {self.solver_version} -> {benchmark_solver_version}"
         )
         database_df = pd.read_csv(self.database_csv)
+        if self.input_csv is not None:
+            input_df = pd.read_csv(self.input_csv)
+            database_df = pd.merge(database_df, input_df, how="left", on="input_file")
         score_df = database_df[
             database_df.solver_version == self.solver_version
         ].reset_index(drop=True)
@@ -123,24 +136,29 @@ class Runner:
         self.logger.info(
             f"Relative score median: {score_df['relative_score'].median()}"
         )
-        self.logger.info("Top 10 improvements:")
+        self.logger.info("Top 20 improvements:")
         self.logger.info(
-            score_df.sort_values(by="relative_score", ascending=False)[:10]
+            score_df.sort_values(by="relative_score", ascending=False)[:20]
         )
-        self.logger.info("Top 10 aggravations:")
-        self.logger.info(score_df.sort_values(by="relative_score")[:10])
+        self.logger.info("Top 20 aggravations:")
+        self.logger.info(score_df.sort_values(by="relative_score")[:20])
         self.logger.info(
             f"Longest duration: {score_df.sort_values(by='duration').iloc[-1]}"
         )
 
         if columns is not None:
             assert 1 <= len(columns) <= 2
+            for column in columns:
+                score_df[f"{column}_cut"] = pd.cut(score_df[column], 2)
+            cut_columns = list(map(lambda col: f"{col}_cut", columns))
             if len(columns) == 1:
-                self.logger.info(score_df.groupby(columns[0])["relative_score"].mean())
+                self.logger.info(
+                    score_df.groupby(f"{columns[0]}_cut")["relative_score"].mean()
+                )
             elif len(columns) == 2:
                 self.logger.info(
-                    score_df[eval_items + columns].pivot_table(
-                        index=columns[0], columns=columns[1]
+                    score_df[eval_items + cut_columns].pivot_table(
+                        index=f"{columns[0]}_cut", columns=f"{columns[1]}_cut"
                     )
                 )
 
@@ -229,6 +247,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-b", "--benchmark-solver-version", type=str, default=None)
     parser.add_argument("--database-csv", type=str, default="log/database.csv")
+    parser.add_argument("--input-csv", type=str, default="log/input.csv")
     parser.add_argument("--log-file", type=str, default="log/a.log")
     args = parser.parse_args()
 
@@ -238,14 +257,16 @@ if __name__ == "__main__":
         solver_cmd=args.solver_path,
         solver_version=args.solver_version,
         database_csv=args.database_csv,
+        input_csv=args.input_csv,
         log_file=args.log_file,
     )
+    columns = ["m", "eps"]
 
     if args.list_solver:
         runner.list_solvers()
     elif args.eval:
         runner.evaluate_relative_score(
-            benchmark_solver_version=args.benchmark_solver_version
+            benchmark_solver_version=args.benchmark_solver_version, columns=columns
         )
     else:
         subprocess.run("cargo build --features local --release", shell=True)
@@ -258,5 +279,5 @@ if __name__ == "__main__":
         ]
         runner.run(cases=cases, ignore=args.ignore, verbose=args.verbose)
         runner.evaluate_relative_score(
-            benchmark_solver_version=args.benchmark_solver_version
+            benchmark_solver_version=args.benchmark_solver_version, columns=columns
         )
