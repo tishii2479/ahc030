@@ -25,7 +25,7 @@ impl Interactor {
 
     pub fn read_input(&mut self) -> Input {
         input! { from &mut self.source, n: usize, m: usize, eps: f64};
-        let mut minos = vec![];
+        let mut minos = Vec::with_capacity(m);
         for _ in 0..m {
             input! {
                 from &mut self.source,
@@ -77,8 +77,8 @@ impl Interactor {
         input! { from &mut self.source, t: usize }
         if t == 1 {
             eprintln!(
-                "result: {{\"score\": {}, \"duration\": {:.4}}}",
-                self.total_cost * 1e6,
+                "result: {{\"score\": {:.6}, \"duration\": {:.4}}}",
+                self.total_cost,
                 time::elapsed_seconds(),
             );
             std::process::exit(0);
