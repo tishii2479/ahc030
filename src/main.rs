@@ -6,8 +6,6 @@ use crate::def::*;
 use crate::interactor::*;
 use crate::util::*;
 
-use itertools::*;
-
 #[macro_export]
 #[cfg(not(feature = "local"))]
 macro_rules! eprint {
@@ -124,7 +122,7 @@ impl<'a> MinoOptimizer<'a> {
         const ITERATION: usize = 10000; // :param
         for _t in 0..ITERATION {
             let mut score_diff = 0.;
-            // let r = rnd::gen_range(2, 3.min(input.m) + 1); // :param
+            // let r = rnd::gen_range(2, 3.min(self.input.m) + 1); // :param
             let r = 2; // :param
             let sample_size = 10; // :param
             let cand_size = 3; // :param
