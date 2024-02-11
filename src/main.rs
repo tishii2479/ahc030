@@ -6,6 +6,8 @@ use crate::def::*;
 use crate::interactor::*;
 use crate::util::*;
 
+use itertools::iproduct;
+
 #[macro_export]
 #[cfg(not(feature = "local"))]
 macro_rules! eprint {
@@ -148,37 +150,65 @@ fn optimize_mino_pos<'a>(
         mino_pos,
     };
 
-    const ITERATION: usize = 100000; // NOTE: 伸ばすと結構上がる
+    const ITERATION: usize = 10000; // NOTE: 伸ばすと結構上がる
     for _t in 0..ITERATION {
         let mut mino_is = vec![];
         let mut prev_mino_poss = vec![];
 
         let mut score_diff = 0.;
-        let r = rnd::gen_range(2, 3.min(input.m) + 1);
+        // let r = rnd::gen_range(2, 3.min(input.m) + 1);
+        let r = 2; // :param
+        let sample_size = 10; // :param
 
-        for _ in 0..r {
+        while mino_is.len() < r {
             let mino_i = rnd::gen_range(0, input.m);
+            if mino_is.contains(&mino_i) {
+                continue;
+            }
             let prev_mino_pos = state.mino_pos[mino_i];
-            let next_mino_pos = (
-                rnd::gen_range(0, input.n - mino_range[mino_i].0),
-                rnd::gen_range(0, input.n - mino_range[mino_i].1),
-            );
             mino_is.push(mino_i);
             prev_mino_poss.push(prev_mino_pos);
-            score_diff += move_mino(&mut state, mino_i, prev_mino_pos, next_mino_pos);
-            state.mino_pos[mino_i] = next_mino_pos;
+            score_diff += toggle_mino(&mut state, mino_i, prev_mino_pos, false);
         }
-        for _ in 0..r {}
-
-        let adopt = score_diff < 0.;
-        if adopt {
-            // eprintln!("{:3} {:10.5} -> {:10.5}", _t, score, score + score_diff);
-            score += score_diff;
-        } else {
+        let mut evals = vec![vec![]; r];
+        for (i, &mino_i) in mino_is.iter().enumerate() {
+            for _ in 0..sample_size {
+                let next_mino_pos = (
+                    rnd::gen_range(0, input.n - mino_range[mino_i].0),
+                    rnd::gen_range(0, input.n - mino_range[mino_i].1),
+                );
+                let eval = toggle_mino(&mut state, mino_i, next_mino_pos, true);
+                evals[i].push((eval, next_mino_pos));
+                toggle_mino(&mut state, mino_i, next_mino_pos, false);
+            }
+            evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        }
+        // 第一候補だけ試す
+        // for (i, &mino_i) in mino_is.iter().enumerate() {
+        //     score_diff += toggle_mino(&mut state, mino_i, evals[i][0].1, true);
+        //     state.mino_pos[mino_i] = evals[i][0].1;
+        // }
+        let mut adopted = false;
+        for (i, j) in iproduct!(0..3, 0..3) {
+            score_diff += toggle_mino(&mut state, mino_is[0], evals[0][i].1, true);
+            score_diff += toggle_mino(&mut state, mino_is[1], evals[1][j].1, true);
+            let adopt = score_diff < -1e-6;
+            if adopt {
+                // eprintln!("{:3} {:10.5} -> {:10.5}", _t, score, score + score_diff);
+                score += score_diff;
+                state.mino_pos[mino_is[0]] = evals[0][i].1;
+                state.mino_pos[mino_is[1]] = evals[1][j].1;
+                adopted = true;
+                break;
+            } else {
+                score_diff += toggle_mino(&mut state, mino_is[0], evals[0][i].1, false);
+                score_diff += toggle_mino(&mut state, mino_is[1], evals[1][j].1, false);
+            }
+        }
+        if !adopted {
             for i in (0..r).rev() {
                 let mino_i = mino_is[i];
-                let prev_mino_pos = state.mino_pos[mino_i];
-                move_mino(&mut state, mino_i, prev_mino_pos, prev_mino_poss[i]);
+                toggle_mino(&mut state, mino_i, prev_mino_poss[i], true);
                 state.mino_pos[mino_i] = prev_mino_poss[i];
             }
         }
