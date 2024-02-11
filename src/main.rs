@@ -25,7 +25,7 @@ fn investigate(
     interactor: &mut Interactor,
     input: &Input,
 ) -> Vec<(Vec<(usize, usize)>, f64)> {
-    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良い
+    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良さそう
     let mut queries = Vec::with_capacity(query_count);
 
     let mut high_prob_v = vec![];
@@ -118,16 +118,19 @@ impl<'a> MinoOptimizer<'a> {
         }
     }
 
-    fn optimize(&mut self) {
-        const ITERATION: usize = 10000; // :param
-        for _t in 0..ITERATION {
+    fn optimize(&mut self, iteration: usize) {
+        let mut adopt_count = 0;
+        for _t in 0..iteration {
             let mut score_diff = 0.;
             let r = 2; // :param、NOTE: 可変にできる
             let sample_size = 9; // :param
             let cand_size = 3; // :param
 
+            // TODO: 近傍の追加
+            // 1. 縦横斜めのいずれかに一個ずつずらす
+            // 2. 1or2個を置き直す
+            // 3. 2個の位置をswapする
             let mut mino_is = Vec::with_capacity(r);
-
             while mino_is.len() < r {
                 let mino_i = rnd::gen_range(0, self.input.m);
                 if mino_is.contains(&mino_i) {
@@ -152,12 +155,16 @@ impl<'a> MinoOptimizer<'a> {
             }
 
             let adopted = self.dfs(&mut vec![0; r], 0, cand_size, &mino_is, &evals, score_diff);
-            if !adopted {
+            if adopted {
+                adopt_count += 1;
+            } else {
                 for mino_i in mino_is {
                     self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
                 }
             }
         }
+
+        eprintln!("adopt_count: {} / {}", adopt_count, iteration);
     }
 
     fn dfs(
@@ -221,6 +228,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let query_limit = input.n * input.n * 2;
     let k = input.n * 2; // :param
     let base_query_count = input.n; // :param
+    let iteration = 10000;
 
     // 初期情報を集める
     let mut queries = investigate(k, base_query_count, &vec![], interactor, input);
@@ -228,12 +236,12 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     loop {
         // ミノの配置を最適化
         let mut optimizer = MinoOptimizer::new(&queries, &input);
-        optimizer.optimize();
-        eprintln!("optimize_mino_pos_error: {:10.5}", optimizer.score);
+        optimizer.optimize(iteration);
 
         let v = get_v(&optimizer.mino_pos, &input.minos, input.n);
         vis_v(&v, answer);
 
+        eprintln!("mino_loss:   {:10.5}", optimizer.score);
         eprintln!("error_count: {}", error_count(&v, answer));
         eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
         eprintln!("total_cost:  {:.5}", interactor.total_cost);
@@ -243,7 +251,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             exit(interactor, input);
         }
 
-        // 情報を集める
+        // 追加情報を集める
         let query_count = base_query_count.min(query_limit - interactor.query_count - 1);
         let _queries = investigate(k, query_count, &v, interactor, input);
         queries.extend(_queries);

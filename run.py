@@ -166,13 +166,17 @@ class Runner:
 
     def list_solvers(self) -> pd.DataFrame:
         database_df = pd.read_csv(self.database_csv)
+        # database_df = database_df[~database_df.solver_version.str.endswith("-1000")]
         best_scores = (
-            database_df.groupby("input_file")["score"].max().rename("best_score")
+            database_df.groupby("input_file")["score"].min().rename("best_score")
         )
         database_df = pd.merge(database_df, best_scores, on="input_file", how="left")
         database_df["relative_score"] = database_df["best_score"] / database_df["score"]
         self.logger.info(
-            database_df[~database_df.solver_version.str.startswith("optuna")]
+            database_df[
+                ~database_df.solver_version.str.startswith("optuna")
+                & ~database_df.solver_version.str.startswith("solver-")
+            ]
             .groupby("solver_version")[["relative_score", "score"]]
             .mean()
             .sort_values(by="relative_score", ascending=False)[:30]
