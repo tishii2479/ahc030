@@ -71,62 +71,52 @@ fn investigate(
     queries
 }
 
+fn toggle_mino(
+    state: &mut AnnealingState,
+    mino_i: usize,
+    mino_pos: (usize, usize),
+    turn_on: bool,
+) -> f64 {
+    let mut score_diff = 0.;
+    for &(_i, _j) in state.minos[mino_i].iter() {
+        let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
+        for &q_i in state.query_indices[i][j].iter() {
+            score_diff -= (state.query_cache[q_i] - state.queries[q_i].1).powf(2.);
+            if turn_on {
+                state.query_cache[q_i] += 1.;
+            } else {
+                state.query_cache[q_i] -= 1.;
+            }
+            score_diff += (state.query_cache[q_i] - state.queries[q_i].1).powf(2.);
+        }
+    }
+    score_diff
+}
+
 fn move_mino(
-    query_cache: &mut Vec<f64>,
-    queries: &Vec<(Vec<(usize, usize)>, f64)>,
-    query_indices: &Vec<Vec<Vec<usize>>>,
-    mino: &Vec<(usize, usize)>,
+    state: &mut AnnealingState,
+    mino_i: usize,
     prev_mino_pos: (usize, usize),
     to_mino_pos: (usize, usize),
 ) -> f64 {
-    fn toggle_mino(
-        query_cache: &mut Vec<f64>,
-        queries: &Vec<(Vec<(usize, usize)>, f64)>,
-        query_indices: &Vec<Vec<Vec<usize>>>,
-        mino: &Vec<(usize, usize)>,
-        mino_pos: (usize, usize),
-        turn_on: bool,
-    ) -> f64 {
-        let mut score_diff = 0.;
-        for &(_i, _j) in mino.iter() {
-            let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
-            for &q_i in query_indices[i][j].iter() {
-                score_diff -= (query_cache[q_i] - queries[q_i].1).powf(2.);
-                if turn_on {
-                    query_cache[q_i] += 1.;
-                } else {
-                    query_cache[q_i] -= 1.;
-                }
-                score_diff += (query_cache[q_i] - queries[q_i].1).powf(2.);
-            }
-        }
-        score_diff
-    }
-
     let mut score_diff = 0.;
-    score_diff += toggle_mino(
-        query_cache,
-        queries,
-        &query_indices,
-        &mino,
-        prev_mino_pos,
-        false,
-    );
-    score_diff += toggle_mino(
-        query_cache,
-        queries,
-        &query_indices,
-        &mino,
-        to_mino_pos,
-        true,
-    );
+    score_diff += toggle_mino(state, mino_i, prev_mino_pos, false);
+    score_diff += toggle_mino(state, mino_i, to_mino_pos, true);
 
     score_diff
 }
 
-fn optimize_mino_pos(
-    queries: &Vec<(Vec<(usize, usize)>, f64)>,
-    input: &Input,
+struct AnnealingState<'a> {
+    query_cache: Vec<f64>,
+    query_indices: Vec<Vec<Vec<usize>>>,
+    queries: &'a Vec<(Vec<(usize, usize)>, f64)>,
+    minos: &'a Vec<Vec<(usize, usize)>>,
+    mino_pos: Vec<(usize, usize)>,
+}
+
+fn optimize_mino_pos<'a>(
+    queries: &'a Vec<(Vec<(usize, usize)>, f64)>,
+    input: &'a Input,
 ) -> Vec<(usize, usize)> {
     let mino_range = get_mino_range(&input.minos);
     let mut mino_pos = Vec::with_capacity(input.m);
@@ -150,8 +140,14 @@ fn optimize_mino_pos(
         score += (query_cache[q_i] - x).powf(2.);
     }
 
-    // const START_TEMP: f64 = 1e2;
-    // const END_TEMP: f64 = 1e-2;
+    let mut state = AnnealingState {
+        query_cache,
+        query_indices,
+        queries: &queries,
+        minos: &input.minos,
+        mino_pos,
+    };
+
     const ITERATION: usize = 100000; // NOTE: 伸ばすと結構上がる
     for _t in 0..ITERATION {
         let mut mino_is = vec![];
@@ -160,30 +156,20 @@ fn optimize_mino_pos(
         let mut score_diff = 0.;
         let r = rnd::gen_range(2, 3.min(input.m) + 1);
 
-        // TODO: 近傍の工夫
-        // 有効な場所を多くする
         for _ in 0..r {
             let mino_i = rnd::gen_range(0, input.m);
-            let prev_mino_pos = mino_pos[mino_i];
-            mino_pos[mino_i] = (
+            let prev_mino_pos = state.mino_pos[mino_i];
+            let next_mino_pos = (
                 rnd::gen_range(0, input.n - mino_range[mino_i].0),
                 rnd::gen_range(0, input.n - mino_range[mino_i].1),
             );
             mino_is.push(mino_i);
             prev_mino_poss.push(prev_mino_pos);
-
-            score_diff += move_mino(
-                &mut query_cache,
-                queries,
-                &query_indices,
-                &input.minos[mino_i],
-                prev_mino_pos,
-                mino_pos[mino_i],
-            );
+            score_diff += move_mino(&mut state, mino_i, prev_mino_pos, next_mino_pos);
+            state.mino_pos[mino_i] = next_mino_pos;
         }
-        // let progress = _t as f64 / ITERATION as f64;
-        // let temp = START_TEMP.powf(1. - progress) * END_TEMP.powf(progress);
-        // let adopt = rnd::nextf() < (-(new_score - cur_score) / temp).exp();
+        for _ in 0..r {}
+
         let adopt = score_diff < 0.;
         if adopt {
             // eprintln!("{:3} {:10.5} -> {:10.5}", _t, score, score + score_diff);
@@ -191,21 +177,15 @@ fn optimize_mino_pos(
         } else {
             for i in (0..r).rev() {
                 let mino_i = mino_is[i];
-                move_mino(
-                    &mut query_cache,
-                    queries,
-                    &query_indices,
-                    &input.minos[mino_i],
-                    mino_pos[mino_i],
-                    prev_mino_poss[i],
-                );
-                mino_pos[mino_i] = prev_mino_poss[i];
+                let prev_mino_pos = state.mino_pos[mino_i];
+                move_mino(&mut state, mino_i, prev_mino_pos, prev_mino_poss[i]);
+                state.mino_pos[mino_i] = prev_mino_poss[i];
             }
         }
     }
     eprintln!("optimize_mino_pos_error: {:10.5}", score);
 
-    mino_pos
+    state.mino_pos
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {

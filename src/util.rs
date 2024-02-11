@@ -60,20 +60,20 @@ pub mod time {
     }
 }
 
-pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, i64)>, input: &Input) {
-    let mut c = vec![vec![0; input.n]; input.n];
-    for (s, _) in queries.iter() {
-        for &(i, j) in s {
-            c[i][j] += 1;
-        }
-    }
-    for i in 0..input.n {
-        for j in 0..input.n {
-            eprint!("{:4}", c[i][j]);
-        }
-        eprintln!();
-    }
-}
+// pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, i64)>, input: &Input) {
+//     let mut c = vec![vec![0; input.n]; input.n];
+//     for (s, _) in queries.iter() {
+//         for &(i, j) in s {
+//             c[i][j] += 1;
+//         }
+//     }
+//     for i in 0..input.n {
+//         for j in 0..input.n {
+//             eprint!("{:4}", c[i][j]);
+//         }
+//         eprintln!();
+//     }
+// }
 
 pub fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
     let has_answer = answer.is_some();
