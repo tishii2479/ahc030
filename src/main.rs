@@ -6,7 +6,7 @@ use crate::def::*;
 use crate::interactor::*;
 use crate::util::*;
 
-use itertools::iproduct;
+use itertools::*;
 
 #[macro_export]
 #[cfg(not(feature = "local"))]
@@ -87,6 +87,8 @@ impl<'a> MinoOptimizer<'a> {
     fn new(queries: &'a Vec<(Vec<(usize, usize)>, f64)>, input: &'a Input) -> MinoOptimizer<'a> {
         let mino_range = get_mino_range(&input.minos);
         let mut mino_pos = Vec::with_capacity(input.m);
+
+        // TODO: 初期解の改善
         for k in 0..input.m {
             mino_pos.push((
                 rnd::gen_range(0, input.n - mino_range[k].0),
@@ -112,7 +114,7 @@ impl<'a> MinoOptimizer<'a> {
             query_cache,
             query_indices,
             mino_pos,
-            score: score,
+            score,
             queries: &queries,
             input: &input,
         }
@@ -121,23 +123,21 @@ impl<'a> MinoOptimizer<'a> {
     fn optimize(&mut self) {
         const ITERATION: usize = 10000; // :param
         for _t in 0..ITERATION {
-            let mut mino_is = vec![];
-            let mut prev_mino_poss = vec![];
-
             let mut score_diff = 0.;
-            // let r = rnd::gen_range(2, 3.min(input.m) + 1);
+            // let r = rnd::gen_range(2, 3.min(input.m) + 1); // :param
             let r = 2; // :param
             let sample_size = 10; // :param
+            let cand_size = 3; // :param
+
+            let mut mino_is = Vec::with_capacity(r);
 
             while mino_is.len() < r {
                 let mino_i = rnd::gen_range(0, self.input.m);
                 if mino_is.contains(&mino_i) {
                     continue;
                 }
-                let prev_mino_pos = self.mino_pos[mino_i];
                 mino_is.push(mino_i);
-                prev_mino_poss.push(prev_mino_pos);
-                score_diff += self.toggle_mino(mino_i, prev_mino_pos, false);
+                score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
             }
             let mut evals = vec![vec![]; r];
             for (i, &mino_i) in mino_is.iter().enumerate() {
@@ -152,36 +152,56 @@ impl<'a> MinoOptimizer<'a> {
                 }
                 evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
             }
-            // 第一候補だけ試す
-            // for (i, &mino_i) in mino_is.iter().enumerate() {
-            //     score_diff += self.toggle_mino(mino_i, evals[i][0].1, true);
-            //     self.mino_pos[mino_i] = evals[i][0].1;
-            // }
-            let mut adopted = false;
-            for (i, j) in iproduct!(0..3, 0..3) {
-                score_diff += self.toggle_mino(mino_is[0], evals[0][i].1, true);
-                score_diff += self.toggle_mino(mino_is[1], evals[1][j].1, true);
-                let adopt = score_diff < -1e-6;
-                if adopt {
-                    // eprintln!("{:3} {:10.5} -> {:10.5}", _t, score, score + score_diff);
-                    self.score += score_diff;
-                    self.mino_pos[mino_is[0]] = evals[0][i].1;
-                    self.mino_pos[mino_is[1]] = evals[1][j].1;
-                    adopted = true;
-                    break;
-                } else {
-                    score_diff += self.toggle_mino(mino_is[0], evals[0][i].1, false);
-                    score_diff += self.toggle_mino(mino_is[1], evals[1][j].1, false);
-                }
-            }
-            if !adopted {
-                for i in (0..r).rev() {
-                    let mino_i = mino_is[i];
-                    self.toggle_mino(mino_i, prev_mino_poss[i], true);
-                    self.mino_pos[mino_i] = prev_mino_poss[i];
+            let mut v = vec![0; r];
+            if !self.dfs(&mut v, 0, cand_size, &mino_is, &evals, score_diff) {
+                for mino_i in mino_is {
+                    self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
                 }
             }
         }
+    }
+
+    fn dfs(
+        &mut self,
+        v: &mut Vec<usize>,
+        depth: usize,
+        cand_size: usize,
+        mino_is: &Vec<usize>,
+        evals: &Vec<Vec<(f64, (usize, usize))>>,
+        score_diff: f64,
+    ) -> bool {
+        if depth == v.len() {
+            let mut score_diff = score_diff;
+            for i in 0..v.len() {
+                score_diff += self.toggle_mino(mino_is[i], evals[i][v[i]].1, true);
+            }
+            let adopt = score_diff < -1e-6;
+            if adopt {
+                // eprintln!(
+                //     "{:6} {:10.3} -> {:10.3} ({:10.3})",
+                //     _t,
+                //     self.score,
+                //     self.score + score_diff,
+                //     score_diff
+                // );
+                self.score += score_diff;
+                for i in 0..v.len() {
+                    self.mino_pos[mino_is[i]] = evals[i][v[i]].1;
+                }
+                return true;
+            }
+            for i in 0..v.len() {
+                score_diff += self.toggle_mino(mino_is[i], evals[i][v[i]].1, false);
+            }
+            return false;
+        }
+        for i in 0..cand_size {
+            v[depth] = i;
+            if self.dfs(v, depth + 1, cand_size, mino_is, evals, score_diff) {
+                return true;
+            }
+        }
+        false
     }
 
     fn toggle_mino(&mut self, mino_i: usize, mino_pos: (usize, usize), turn_on: bool) -> f64 {
