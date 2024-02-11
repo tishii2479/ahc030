@@ -136,6 +136,7 @@ impl<'a> MinoOptimizer<'a> {
                 mino_is.push(mino_i);
                 score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
             }
+
             let mut evals = vec![vec![]; r];
             for (i, &mino_i) in mino_is.iter().enumerate() {
                 for _ in 0..sample_size {
@@ -149,6 +150,7 @@ impl<'a> MinoOptimizer<'a> {
                 }
                 evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
             }
+
             let adopted = self.dfs(&mut vec![0; r], 0, cand_size, &mino_is, &evals, score_diff);
             if !adopted {
                 for mino_i in mino_is {
@@ -161,17 +163,13 @@ impl<'a> MinoOptimizer<'a> {
     fn dfs(
         &mut self,
         v: &mut Vec<usize>,
-        depth: usize,
+        mino_i: usize,
         cand_size: usize,
         mino_is: &Vec<usize>,
         evals: &Vec<Vec<(f64, (usize, usize))>>,
         score_diff: f64,
     ) -> bool {
-        if depth == v.len() {
-            let mut score_diff = score_diff;
-            for i in 0..v.len() {
-                score_diff += self.toggle_mino(mino_is[i], evals[i][v[i]].1, true);
-            }
+        if mino_i == v.len() {
             let adopt = score_diff < -1e-6;
             if adopt {
                 // eprintln!(
@@ -187,16 +185,16 @@ impl<'a> MinoOptimizer<'a> {
                 }
                 return true; // NOTE: 最善の候補は使っていない
             }
-            for i in 0..v.len() {
-                score_diff += self.toggle_mino(mino_is[i], evals[i][v[i]].1, false);
-            }
             return false;
         }
         for i in 0..cand_size {
-            v[depth] = i;
-            if self.dfs(v, depth + 1, cand_size, mino_is, evals, score_diff) {
+            v[mino_i] = i;
+            let score_diff =
+                score_diff + self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, true);
+            if self.dfs(v, mino_i + 1, cand_size, mino_is, evals, score_diff) {
                 return true;
             }
+            self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, false);
         }
         false
     }
