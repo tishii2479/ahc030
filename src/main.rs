@@ -122,7 +122,7 @@ impl<'a> MinoOptimizer<'a> {
         const ITERATION: usize = 10000; // :param
         for _t in 0..ITERATION {
             let mut score_diff = 0.;
-            let r = 2; // :param、可変にできる
+            let r = 2; // :param、NOTE: 可変にできる
             let sample_size = 9; // :param
             let cand_size = 3; // :param
 
@@ -185,7 +185,7 @@ impl<'a> MinoOptimizer<'a> {
                 for i in 0..v.len() {
                     self.mino_pos[mino_is[i]] = evals[i][v[i]].1;
                 }
-                return true;
+                return true; // NOTE: 最善の候補は使っていない
             }
             for i in 0..v.len() {
                 score_diff += self.toggle_mino(mino_is[i], evals[i][v[i]].1, false);
@@ -217,18 +217,6 @@ impl<'a> MinoOptimizer<'a> {
         }
         score_diff
     }
-
-    // fn move_mino(
-    //     &mut self,
-    //     mino_i: usize,
-    //     prev_mino_pos: (usize, usize),
-    //     to_mino_pos: (usize, usize),
-    // ) -> f64 {
-    //     let mut score_diff = 0.;
-    //     score_diff += self.toggle_mino(mino_i, prev_mino_pos, false);
-    //     score_diff += self.toggle_mino(mino_i, to_mino_pos, true);
-    //     score_diff
-    // }
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
