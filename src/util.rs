@@ -89,7 +89,7 @@ pub fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
             if v[i][j] > 0 {
                 eprint!("\x1b[48;2;0;0;255m");
             }
-            eprint!("  {}", v[i][j]);
+            eprint!("{:2}", v[i][j]);
             if has_answer {
                 let ans_v = answer.as_ref().unwrap().v[i][j];
                 eprint!("/{}", ans_v);
