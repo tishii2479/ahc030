@@ -21,15 +21,44 @@ macro_rules! eprintln {
 fn investigate(
     k: usize,
     query_count: usize,
+    v: &Vec<Vec<usize>>,
     interactor: &mut Interactor,
     input: &Input,
 ) -> Vec<(Vec<(usize, usize)>, f64)> {
+    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良い
     let mut queries = Vec::with_capacity(query_count);
+
+    let mut high_prob_v = vec![];
+    if v.len() > 0 {
+        for i in 0..input.n {
+            for j in 0..input.n {
+                let (pi, pj) = (i.max(1) - 1, j.max(1) - 1);
+                let (ni, nj) = ((i + 1).min(input.n - 1), (j + 1).min(input.n - 1));
+                if v[i][j]
+                    + v[pi][j]
+                    + v[i][pj]
+                    + v[pi][pj]
+                    + v[i][nj]
+                    + v[ni][j]
+                    + v[ni][nj]
+                    + v[ni][pj]
+                    + v[pi][nj]
+                    > 0
+                {
+                    high_prob_v.push((i, j));
+                }
+            }
+        }
+    }
 
     for _ in 0..query_count {
         let mut s = vec![];
         while s.len() < k {
-            let a = (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n));
+            let a = if high_prob_v.len() > 0 && rnd::nextf() < USE_HIGH_PROB {
+                high_prob_v[rnd::gen_range(0, high_prob_v.len())]
+            } else {
+                (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n))
+            };
             if !s.contains(&a) {
                 s.push(a);
             }
@@ -42,27 +71,56 @@ fn investigate(
     queries
 }
 
-fn toggle_mino(
+fn move_mino(
     query_cache: &mut Vec<f64>,
     queries: &Vec<(Vec<(usize, usize)>, f64)>,
     query_indices: &Vec<Vec<Vec<usize>>>,
     mino: &Vec<(usize, usize)>,
-    mino_pos: (usize, usize),
-    turn_on: bool,
+    prev_mino_pos: (usize, usize),
+    to_mino_pos: (usize, usize),
 ) -> f64 {
-    let mut score_diff = 0.;
-    for &(_i, _j) in mino.iter() {
-        let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
-        for &q_i in query_indices[i][j].iter() {
-            score_diff -= (query_cache[q_i] - queries[q_i].1).powf(2.);
-            if turn_on {
-                query_cache[q_i] += 1.;
-            } else {
-                query_cache[q_i] -= 1.;
+    fn toggle_mino(
+        query_cache: &mut Vec<f64>,
+        queries: &Vec<(Vec<(usize, usize)>, f64)>,
+        query_indices: &Vec<Vec<Vec<usize>>>,
+        mino: &Vec<(usize, usize)>,
+        mino_pos: (usize, usize),
+        turn_on: bool,
+    ) -> f64 {
+        let mut score_diff = 0.;
+        for &(_i, _j) in mino.iter() {
+            let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
+            for &q_i in query_indices[i][j].iter() {
+                score_diff -= (query_cache[q_i] - queries[q_i].1).powf(2.);
+                if turn_on {
+                    query_cache[q_i] += 1.;
+                } else {
+                    query_cache[q_i] -= 1.;
+                }
+                score_diff += (query_cache[q_i] - queries[q_i].1).powf(2.);
             }
-            score_diff += (query_cache[q_i] - queries[q_i].1).powf(2.);
         }
+        score_diff
     }
+
+    let mut score_diff = 0.;
+    score_diff += toggle_mino(
+        query_cache,
+        queries,
+        &query_indices,
+        &mino,
+        prev_mino_pos,
+        false,
+    );
+    score_diff += toggle_mino(
+        query_cache,
+        queries,
+        &query_indices,
+        &mino,
+        to_mino_pos,
+        true,
+    );
+
     score_diff
 }
 
@@ -100,7 +158,7 @@ fn optimize_mino_pos(
         let mut prev_mino_poss = vec![];
 
         let mut score_diff = 0.;
-        let r = rnd::gen_range(2, 4.min(input.m + 1));
+        let r = rnd::gen_range(2, 3.min(input.m) + 1);
 
         // TODO: 近傍の工夫
         // 有効な場所を多くする
@@ -114,21 +172,13 @@ fn optimize_mino_pos(
             mino_is.push(mino_i);
             prev_mino_poss.push(prev_mino_pos);
 
-            score_diff += toggle_mino(
+            score_diff += move_mino(
                 &mut query_cache,
                 queries,
                 &query_indices,
                 &input.minos[mino_i],
                 prev_mino_pos,
-                false,
-            );
-            score_diff += toggle_mino(
-                &mut query_cache,
-                queries,
-                &query_indices,
-                &input.minos[mino_i],
                 mino_pos[mino_i],
-                true,
             );
         }
         // let progress = _t as f64 / ITERATION as f64;
@@ -141,23 +191,15 @@ fn optimize_mino_pos(
         } else {
             for i in (0..r).rev() {
                 let mino_i = mino_is[i];
-                score_diff += toggle_mino(
+                move_mino(
                     &mut query_cache,
                     queries,
                     &query_indices,
                     &input.minos[mino_i],
                     mino_pos[mino_i],
-                    false,
+                    prev_mino_poss[i],
                 );
                 mino_pos[mino_i] = prev_mino_poss[i];
-                score_diff += toggle_mino(
-                    &mut query_cache,
-                    queries,
-                    &query_indices,
-                    &input.minos[mino_i],
-                    prev_mino_poss[i],
-                    true,
-                );
             }
         }
     }
@@ -167,24 +209,32 @@ fn optimize_mino_pos(
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
-    let mut queries = vec![];
-    let k = input.n;
-    let query_count = input.n;
-    loop {
-        // 情報を集める
-        let query_count = query_count.min(input.n * input.n * 2 - interactor.query_count);
-        let _queries = investigate(k, query_count, interactor, input);
-        queries.extend(_queries);
+    let query_limit = input.n * input.n * 2;
+    let k = input.n; // :param
+    let query_count = input.n; // :param
 
+    // 初期情報を集める
+    let mut queries = investigate(k, query_count, &vec![], interactor, input);
+
+    loop {
         // ミノの配置を最適化
         let mino_pos = optimize_mino_pos(&queries, &input);
         let v = get_v(&mino_pos, &input.minos, input.n);
         vis_v(&v, answer);
 
         eprintln!("error_count: {}", error_count(&v, answer));
+        eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
+        eprintln!("total_cost:  {:.5}", interactor.total_cost);
 
         let s = get_s(&v);
-        interactor.output_answer(&s);
+        if interactor.output_answer(&s) {
+            exit(interactor, input);
+        }
+
+        // 情報を集める
+        let query_count = query_count.min(query_limit - interactor.query_count - 1);
+        let _queries = investigate(k, query_count, &v, interactor, input);
+        queries.extend(_queries);
     }
 }
 
@@ -192,7 +242,6 @@ fn main() {
     time::start_clock();
     let mut interactor = Interactor::new();
     let input = interactor.read_input();
-    eprintln!("m = {}, eps = {:.2}", input.m, input.eps);
     let answer = if cfg!(feature = "local") {
         Some(interactor.read_answer(&input))
     } else {

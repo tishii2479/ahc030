@@ -1,4 +1,5 @@
 use crate::def::*;
+use crate::interactor::*;
 
 pub mod rnd {
     static mut S: usize = 88172645463325252;
@@ -56,6 +57,21 @@ pub mod time {
             }
             t - START
         }
+    }
+}
+
+pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, i64)>, input: &Input) {
+    let mut c = vec![vec![0; input.n]; input.n];
+    for (s, _) in queries.iter() {
+        for &(i, j) in s {
+            c[i][j] += 1;
+        }
+    }
+    for i in 0..input.n {
+        for j in 0..input.n {
+            eprint!("{:4}", c[i][j]);
+        }
+        eprintln!();
     }
 }
 
@@ -131,4 +147,18 @@ pub fn error_count(v: &Vec<Vec<usize>>, answer: &Option<Answer>) -> i64 {
         }
     }
     error_count
+}
+
+pub fn exit(interactor: &mut Interactor, input: &Input) {
+    eprintln!(
+        "params: n = {}, m = {}, eps = {:.2}",
+        input.n, input.m, input.eps
+    );
+    eprintln!(
+        "result: {{\"score\": {:.6}, \"duration\": {:.4}, \"query_count\": {}}}",
+        interactor.total_cost,
+        time::elapsed_seconds(),
+        interactor.query_count,
+    );
+    std::process::exit(0);
 }

@@ -24,5 +24,5 @@ if __name__ == "__main__":
     print(
         df[(df.input_file == f"tools/in/{file}.txt")][
             ["solver_version", "score"]
-        ].sort_values(by="score", ascending=False)[:20]
+        ].sort_values(by="score")[:20]
     )

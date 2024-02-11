@@ -86,10 +86,10 @@ class Runner:
         ].reset_index(drop=True)
 
         self.logger.info(f"Raw score mean: {score_df.score.mean()}")
-        self.logger.info("Top 20 improvements:")
-        self.logger.info(score_df.sort_values(by="score", ascending=False)[:20])
-        self.logger.info("Top 20 aggravations:")
-        self.logger.info(score_df.sort_values(by="score")[:20])
+        self.logger.info("Top 10 improvements:")
+        self.logger.info(score_df.sort_values(by="score", ascending=False)[:10])
+        self.logger.info("Top 10 aggravations:")
+        self.logger.info(score_df.sort_values(by="score")[:10])
 
         if columns is not None:
             assert 1 <= len(columns) <= 2
@@ -136,12 +136,12 @@ class Runner:
         self.logger.info(
             f"Relative score median: {score_df['relative_score'].median()}"
         )
-        self.logger.info("Top 20 improvements:")
+        self.logger.info("Top 10 improvements:")
         self.logger.info(
-            score_df.sort_values(by="relative_score", ascending=False)[:20]
+            score_df.sort_values(by="relative_score", ascending=False)[:10]
         )
-        self.logger.info("Top 20 aggravations:")
-        self.logger.info(score_df.sort_values(by="relative_score")[:20])
+        self.logger.info("Top 10 aggravations:")
+        self.logger.info(score_df.sort_values(by="relative_score")[:10])
         self.logger.info(
             f"Longest duration: {score_df.sort_values(by='duration').iloc[-1]}"
         )
@@ -170,12 +170,12 @@ class Runner:
             database_df.groupby("input_file")["score"].max().rename("best_score")
         )
         database_df = pd.merge(database_df, best_scores, on="input_file", how="left")
-        database_df["relative_score"] = database_df["score"] / database_df["best_score"]
+        database_df["relative_score"] = database_df["best_score"] / database_df["score"]
         self.logger.info(
             database_df[~database_df.solver_version.str.startswith("optuna")]
             .groupby("solver_version")[["relative_score", "score"]]
             .mean()
-            .sort_values(by="relative_score")[:30]
+            .sort_values(by="relative_score", ascending=False)[:30]
         )
 
         return database_df

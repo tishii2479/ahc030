@@ -76,18 +76,12 @@ impl Interactor {
         self.query_count += 1;
 
         input! { from &mut self.source, t: usize }
-        if t == 1 {
-            eprintln!(
-                "result: {{\"score\": {:.6}, \"duration\": {:.4}, \"query_count\": {}}}",
-                self.total_cost,
-                time::elapsed_seconds(),
-                self.query_count,
-            );
-            std::process::exit(0);
+
+        if t == 0 {
+            self.total_cost += 1.;
         }
 
-        self.total_cost += 1.;
-        false
+        t == 1
     }
 
     fn flush(&self) {
