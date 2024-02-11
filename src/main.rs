@@ -125,7 +125,7 @@ impl<'a> MinoOptimizer<'a> {
     }
 
     fn optimize(&mut self, iteration: usize) {
-        let iteration = 100000;
+        let iteration = 10000;
         for _t in 0..iteration {
             // TODO: 近傍の追加
             // 1. 縦横斜めのいずれかに一個ずつずらす
@@ -134,7 +134,7 @@ impl<'a> MinoOptimizer<'a> {
             let p = rnd::nextf();
             let adopted = if p < 0. {
                 self.action_slide_one()
-            } else if p < 0.9 || _t < 10000 {
+            } else if p < 0. {
                 self.action_move_one()
             } else {
                 self.action_move_two()
@@ -208,13 +208,22 @@ impl<'a> MinoOptimizer<'a> {
             score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
 
-        let mut evals = vec![vec![]; r];
+        let mut evals: Vec<Vec<(f64, (usize, usize))>> = vec![vec![]; r];
         for (i, &mino_i) in mino_is.iter().enumerate() {
-            for _ in 0..sample_size {
-                let next_mino_pos = (
-                    rnd::gen_range(0, self.input.n - self.mino_range[mino_i].0),
-                    rnd::gen_range(0, self.input.n - self.mino_range[mino_i].1),
-                );
+            for j in 0..sample_size {
+                let next_mino_pos = if j < 2 || i == 0 {
+                    (
+                        rnd::gen_range(0, self.input.n - self.mino_range[mino_i].0),
+                        rnd::gen_range(0, self.input.n - self.mino_range[mino_i].1),
+                    )
+                } else {
+                    (
+                        (self.mino_pos[mino_is[0]].0.max(1) + rnd::gen_range(0, 3) - 1)
+                            .clamp(0, self.input.n - self.mino_range[mino_i].0 - 1),
+                        (self.mino_pos[mino_is[0]].1.max(1) + rnd::gen_range(0, 3) - 1)
+                            .clamp(0, self.input.n - self.mino_range[mino_i].1 - 1),
+                    )
+                };
                 let eval = self.toggle_mino(mino_i, next_mino_pos, true);
                 evals[i].push((eval, next_mino_pos));
                 self.toggle_mino(mino_i, next_mino_pos, false);
