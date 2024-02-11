@@ -122,9 +122,8 @@ impl<'a> MinoOptimizer<'a> {
         const ITERATION: usize = 10000; // :param
         for _t in 0..ITERATION {
             let mut score_diff = 0.;
-            // let r = rnd::gen_range(2, 3.min(self.input.m) + 1); // :param
-            let r = 2; // :param
-            let sample_size = 10; // :param
+            let r = 2; // :param、可変にできる
+            let sample_size = 9; // :param
             let cand_size = 3; // :param
 
             let mut mino_is = Vec::with_capacity(r);
@@ -150,8 +149,8 @@ impl<'a> MinoOptimizer<'a> {
                 }
                 evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
             }
-            let mut v = vec![0; r];
-            if !self.dfs(&mut v, 0, cand_size, &mino_is, &evals, score_diff) {
+            let adopted = self.dfs(&mut vec![0; r], 0, cand_size, &mino_is, &evals, score_diff);
+            if !adopted {
                 for mino_i in mino_is {
                     self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
                 }
@@ -234,11 +233,11 @@ impl<'a> MinoOptimizer<'a> {
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let query_limit = input.n * input.n * 2;
-    let k = input.n; // :param
-    let query_count = input.n; // :param
+    let k = input.n * 2; // :param
+    let base_query_count = input.n; // :param
 
     // 初期情報を集める
-    let mut queries = investigate(k, query_count, &vec![], interactor, input);
+    let mut queries = investigate(k, base_query_count, &vec![], interactor, input);
 
     loop {
         // ミノの配置を最適化
@@ -259,7 +258,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         }
 
         // 情報を集める
-        let query_count = query_count.min(query_limit - interactor.query_count - 1);
+        let query_count = base_query_count.min(query_limit - interactor.query_count - 1);
         let _queries = investigate(k, query_count, &v, interactor, input);
         queries.extend(_queries);
     }
