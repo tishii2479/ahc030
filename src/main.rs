@@ -44,14 +44,14 @@ fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
     delta
 }
 
-fn random_delta(
-    target_pos: (usize, usize),
+fn add_delta(
+    from_pos: (usize, usize),
     mino_range: (usize, usize),
-    delta: &Vec<(i64, i64)>,
+    delta: (i64, i64),
 ) -> (usize, usize) {
-    let (di, dj) = delta[rnd::gen_range(0, delta.len())];
-    let ni = (target_pos.0 as i64 + di).clamp(0, mino_range.0 as i64 - 1) as usize;
-    let nj = (target_pos.1 as i64 + dj).clamp(0, mino_range.1 as i64 - 1) as usize;
+    // NOTE: 外れているならNoneを返す、現状は少し偏っている
+    let ni = (from_pos.0 as i64 + delta.0).clamp(0, mino_range.0 as i64 - 1) as usize;
+    let nj = (from_pos.1 as i64 + delta.1).clamp(0, mino_range.1 as i64 - 1) as usize;
     (ni, nj)
 }
 
@@ -151,18 +151,18 @@ impl<'a> MinoOptimizer<'a> {
 
     fn optimize(&mut self, iteration: usize) {
         let delta_max_dist = 2;
-        let delta = create_weighted_delta(delta_max_dist);
+        let weighted_delta = create_weighted_delta(delta_max_dist);
 
         for _t in 0..iteration {
             let p = rnd::nextf();
             let adopted = if p < 0.2 {
-                self.action_slide_one(&delta)
+                self.action_slide_one(&weighted_delta)
             } else if p < 0.3 {
                 self.action_move_one()
             } else if p < 1. {
-                self.action_swap(2, &delta)
+                self.action_swap(2, &weighted_delta)
             } else {
-                self.action_swap(3, &delta)
+                self.action_swap(3, &weighted_delta)
             };
             if adopted {
                 self.adopt_count += 1;
@@ -172,7 +172,7 @@ impl<'a> MinoOptimizer<'a> {
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
     }
 
-    fn action_swap(&mut self, r: usize, delta: &Vec<(i64, i64)>) -> bool {
+    fn action_swap(&mut self, r: usize, weighted_delta: &Vec<(i64, i64)>) -> bool {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
         let mut mino_is = Vec::with_capacity(r);
@@ -186,7 +186,8 @@ impl<'a> MinoOptimizer<'a> {
             score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
         for i in 0..r {
-            let next_mino_pos = random_delta(
+            let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
+            let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[(i + 1) % r]],
                 self.mino_range[mino_is[i]],
                 delta,
@@ -209,10 +210,11 @@ impl<'a> MinoOptimizer<'a> {
         }
     }
 
-    fn action_slide_one(&mut self, delta: &Vec<(i64, i64)>) -> bool {
+    fn action_slide_one(&mut self, weighted_delta: &Vec<(i64, i64)>) -> bool {
         let mino_i = rnd::gen_range(0, self.input.m);
         let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
-        let new_mino_pos = random_delta(self.mino_pos[mino_i], self.mino_range[mino_i], delta);
+        let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
+        let new_mino_pos = add_delta(self.mino_pos[mino_i], self.mino_range[mino_i], delta);
         score_diff += self.toggle_mino(mino_i, new_mino_pos, true);
         if score_diff < -EPS {
             self.score += score_diff;

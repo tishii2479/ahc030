@@ -262,6 +262,7 @@ $$
 
 - 近傍
     - action_slide_one
+    - action_slide_two
     - action_move_one
     - action_swap_two
     - action_swap_three
