@@ -149,11 +149,7 @@ pub fn error_count(v: &Vec<Vec<usize>>, answer: &Option<Answer>) -> i64 {
     error_count
 }
 
-pub fn exit(interactor: &mut Interactor, input: &Input) {
-    eprintln!(
-        "params: n = {}, m = {}, eps = {:.2}",
-        input.n, input.m, input.eps
-    );
+pub fn exit(interactor: &mut Interactor) {
     eprintln!(
         "result: {{\"score\": {:.6}, \"duration\": {:.4}, \"query_count\": {}}}",
         interactor.total_cost,

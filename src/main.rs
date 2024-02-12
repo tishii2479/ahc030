@@ -32,10 +32,11 @@ const D: [(usize, usize); 8] = [
 
 fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
     let mut delta = vec![];
+    let p = 2.; // :param
     for di in -delta_max_dist..=delta_max_dist {
         for dj in -delta_max_dist..=delta_max_dist {
             let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
-            let cnt = ((delta_max_dist as f64 * 2.).powf(2.) / dist.powf(2.))
+            let cnt = ((delta_max_dist as f64 * 2.).powf(p) / dist.powf(p))
                 .round()
                 .max(1.) as usize;
             delta.extend(vec![(di, dj); cnt]);
@@ -150,31 +151,52 @@ impl<'a> MinoOptimizer<'a> {
     }
 
     fn optimize(&mut self, iteration: usize) {
-        let delta_max_dist = 2;
+        let delta_max_dist = 2; // :param
         let weighted_delta = create_weighted_delta(delta_max_dist);
 
+        let mut mino_is = vec![];
+        let mut next_mino_poss = vec![];
+
         for _t in 0..iteration {
+            mino_is.clear();
+            next_mino_poss.clear();
+
             let p = rnd::nextf();
-            let adopted = if p < 0.2 {
-                self.action_slide(1, &weighted_delta)
+            let score_diff = if p < 0.2 {
+                self.action_slide(&mut mino_is, &mut next_mino_poss, 1, &weighted_delta)
             } else if p < 0.3 {
-                self.action_move_one()
+                self.action_move_one(&mut mino_is, &mut next_mino_poss)
             } else {
-                self.action_swap(2, &weighted_delta)
+                self.action_swap(&mut mino_is, &mut next_mino_poss, 2, &weighted_delta)
             };
+
+            let adopted = score_diff < -EPS;
             if adopted {
+                self.score += score_diff;
+                for i in 0..mino_is.len() {
+                    self.mino_pos[mino_is[i]] = next_mino_poss[i];
+                }
                 self.adopt_count += 1;
+            } else {
+                for i in 0..mino_is.len() {
+                    self.toggle_mino(mino_is[i], next_mino_poss[i], false);
+                    self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
+                }
             }
         }
 
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
     }
 
-    fn action_swap(&mut self, r: usize, weighted_delta: &Vec<(i64, i64)>) -> bool {
+    fn action_swap(
+        &mut self,
+        mino_is: &mut Vec<usize>,
+        next_mino_poss: &mut Vec<(usize, usize)>,
+        r: usize,
+        weighted_delta: &Vec<(i64, i64)>,
+    ) -> f64 {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
-        let mut mino_is = Vec::with_capacity(r);
-        let mut next_mino_poss = Vec::with_capacity(r);
         while mino_is.len() < r {
             let mino_i = rnd::gen_range(0, self.input.m);
             if mino_is.contains(&mino_i) {
@@ -193,26 +215,19 @@ impl<'a> MinoOptimizer<'a> {
             score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
-        if score_diff < -EPS {
-            self.score += score_diff;
-            for i in 0..r {
-                self.mino_pos[mino_is[i]] = next_mino_poss[i];
-            }
-            true
-        } else {
-            for i in 0..r {
-                score_diff += self.toggle_mino(mino_is[i], next_mino_poss[i], false);
-                score_diff += self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
-            }
-            false
-        }
+
+        score_diff
     }
 
-    fn action_slide(&mut self, r: usize, weighted_delta: &Vec<(i64, i64)>) -> bool {
+    fn action_slide(
+        &mut self,
+        mino_is: &mut Vec<usize>,
+        next_mino_poss: &mut Vec<(usize, usize)>,
+        r: usize,
+        weighted_delta: &Vec<(i64, i64)>,
+    ) -> f64 {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
-        let mut mino_is = Vec::with_capacity(r);
-        let mut next_mino_poss = Vec::with_capacity(r);
         while mino_is.len() < r {
             let mino_i = rnd::gen_range(0, self.input.m);
             if mino_is.contains(&mino_i) {
@@ -231,22 +246,14 @@ impl<'a> MinoOptimizer<'a> {
             score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
-        if score_diff < -EPS {
-            self.score += score_diff;
-            for i in 0..r {
-                self.mino_pos[mino_is[i]] = next_mino_poss[i];
-            }
-            true
-        } else {
-            for i in 0..r {
-                score_diff += self.toggle_mino(mino_is[i], next_mino_poss[i], false);
-                score_diff += self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
-            }
-            false
-        }
+        score_diff
     }
 
-    fn action_move_one(&mut self) -> bool {
+    fn action_move_one(
+        &mut self,
+        mino_is: &mut Vec<usize>,
+        next_mino_poss: &mut Vec<(usize, usize)>,
+    ) -> f64 {
         let mino_i = rnd::gen_range(0, self.input.m);
         let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         let next_mino_pos = (
@@ -254,15 +261,9 @@ impl<'a> MinoOptimizer<'a> {
             rnd::gen_range(0, self.mino_range[mino_i].1),
         );
         score_diff += self.toggle_mino(mino_i, next_mino_pos, true);
-        if score_diff < -EPS {
-            self.score += score_diff;
-            self.mino_pos[mino_i] = next_mino_pos;
-            true
-        } else {
-            self.toggle_mino(mino_i, next_mino_pos, false);
-            self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
-            false
-        }
+        mino_is.push(mino_i);
+        next_mino_poss.push(next_mino_pos);
+        score_diff
     }
 
     fn toggle_mino(&mut self, mino_i: usize, mino_pos: (usize, usize), turn_on: bool) -> f64 {
@@ -307,7 +308,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
 
         let s = get_s(&v);
         if interactor.output_answer(&s) {
-            exit(interactor, input);
+            exit(interactor);
         }
 
         // 追加情報を集める
