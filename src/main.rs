@@ -212,19 +212,7 @@ impl<'a> MinoOptimizer<'a> {
     fn action_slide_one(&mut self, delta: &Vec<(i64, i64)>) -> bool {
         let mino_i = rnd::gen_range(0, self.input.m);
         let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
-        let mut new_mino_pos;
-        loop {
-            let d = delta[rnd::gen_range(0, delta.len())];
-            new_mino_pos = (
-                (self.mino_pos[mino_i].0 as i64 + d.0) as usize,
-                (self.mino_pos[mino_i].1 as i64 + d.1) as usize,
-            );
-            if new_mino_pos.0 < self.mino_range[mino_i].0
-                && new_mino_pos.1 < self.mino_range[mino_i].1
-            {
-                break;
-            }
-        }
+        let new_mino_pos = random_delta(self.mino_pos[mino_i], self.mino_range[mino_i], delta);
         score_diff += self.toggle_mino(mino_i, new_mino_pos, true);
         if score_diff < -EPS {
             self.score += score_diff;
