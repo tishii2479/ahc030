@@ -156,13 +156,11 @@ impl<'a> MinoOptimizer<'a> {
         for _t in 0..iteration {
             let p = rnd::nextf();
             let adopted = if p < 0.2 {
-                self.action_slide_one(&weighted_delta)
+                self.action_slide(1, &weighted_delta)
             } else if p < 0.3 {
                 self.action_move_one()
-            } else if p < 1. {
-                self.action_swap(2, &weighted_delta)
             } else {
-                self.action_swap(3, &weighted_delta)
+                self.action_swap(2, &weighted_delta)
             };
             if adopted {
                 self.adopt_count += 1;
@@ -210,19 +208,40 @@ impl<'a> MinoOptimizer<'a> {
         }
     }
 
-    fn action_slide_one(&mut self, weighted_delta: &Vec<(i64, i64)>) -> bool {
-        let mino_i = rnd::gen_range(0, self.input.m);
-        let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
+    fn action_slide(&mut self, r: usize, weighted_delta: &Vec<(i64, i64)>) -> bool {
+        let r = r.min(self.input.m);
+        let mut score_diff = 0.;
+        let mut mino_is = Vec::with_capacity(r);
+        let mut next_mino_poss = Vec::with_capacity(r);
+        while mino_is.len() < r {
+            let mino_i = rnd::gen_range(0, self.input.m);
+            if mino_is.contains(&mino_i) {
+                continue;
+            }
+            mino_is.push(mino_i);
+            score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
+        }
         let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
-        let new_mino_pos = add_delta(self.mino_pos[mino_i], self.mino_range[mino_i], delta);
-        score_diff += self.toggle_mino(mino_i, new_mino_pos, true);
+        for i in 0..r {
+            let next_mino_pos = add_delta(
+                self.mino_pos[mino_is[i]],
+                self.mino_range[mino_is[i]],
+                delta,
+            );
+            score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
+            next_mino_poss.push(next_mino_pos);
+        }
         if score_diff < -EPS {
             self.score += score_diff;
-            self.mino_pos[mino_i] = new_mino_pos;
+            for i in 0..r {
+                self.mino_pos[mino_is[i]] = next_mino_poss[i];
+            }
             true
         } else {
-            self.toggle_mino(mino_i, new_mino_pos, false);
-            self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
+            for i in 0..r {
+                score_diff += self.toggle_mino(mino_is[i], next_mino_poss[i], false);
+                score_diff += self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
+            }
             false
         }
     }
@@ -230,17 +249,17 @@ impl<'a> MinoOptimizer<'a> {
     fn action_move_one(&mut self) -> bool {
         let mino_i = rnd::gen_range(0, self.input.m);
         let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
-        let new_mino_pos = (
+        let next_mino_pos = (
             rnd::gen_range(0, self.mino_range[mino_i].0),
             rnd::gen_range(0, self.mino_range[mino_i].1),
         );
-        score_diff += self.toggle_mino(mino_i, new_mino_pos, true);
+        score_diff += self.toggle_mino(mino_i, next_mino_pos, true);
         if score_diff < -EPS {
             self.score += score_diff;
-            self.mino_pos[mino_i] = new_mino_pos;
+            self.mino_pos[mino_i] = next_mino_pos;
             true
         } else {
-            self.toggle_mino(mino_i, new_mino_pos, false);
+            self.toggle_mino(mino_i, next_mino_pos, false);
             self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
             false
         }
