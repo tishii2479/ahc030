@@ -126,12 +126,12 @@ pub fn get_v(
     v
 }
 
-pub fn get_mino_range(minos: &Vec<Vec<(usize, usize)>>) -> Vec<(usize, usize)> {
-    let mut ranges = Vec::with_capacity(minos.len());
-    for mino in minos {
+pub fn get_mino_range(input: &Input) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::with_capacity(input.minos.len());
+    for mino in input.minos.iter() {
         let i_max = mino.iter().map(|&x| x.0).max().unwrap();
         let j_max = mino.iter().map(|&x| x.1).max().unwrap();
-        ranges.push((i_max, j_max));
+        ranges.push((input.n - i_max, input.n - j_max));
     }
     ranges
 }
