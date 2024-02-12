@@ -321,6 +321,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     }
 }
 
+#[allow(unused)]
 fn solve_greedy(interactor: &mut Interactor, input: &Input) {
     let mut s = vec![];
     for i in 0..input.n {
@@ -344,9 +345,5 @@ fn main() {
     } else {
         None
     };
-    if input.m < 13 {
-        solve(&mut interactor, &input, &answer);
-    } else {
-        solve_greedy(&mut interactor, &input);
-    }
+    solve(&mut interactor, &input, &answer);
 }
