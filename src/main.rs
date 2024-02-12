@@ -30,6 +30,31 @@ const D: [(usize, usize); 8] = [
     (1, !0),
 ];
 
+fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
+    let mut delta = vec![];
+    for di in -delta_max_dist..=delta_max_dist {
+        for dj in -delta_max_dist..=delta_max_dist {
+            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
+            let cnt = ((delta_max_dist as f64 * 2.).powf(2.) / dist.powf(2.))
+                .round()
+                .max(1.) as usize;
+            delta.extend(vec![(di, dj); cnt]);
+        }
+    }
+    delta
+}
+
+fn random_delta(
+    target_pos: (usize, usize),
+    mino_range: (usize, usize),
+    delta: &Vec<(i64, i64)>,
+) -> (usize, usize) {
+    let (di, dj) = delta[rnd::gen_range(0, delta.len())];
+    let ni = (target_pos.0 as i64 + di).clamp(0, mino_range.0 as i64 - 1) as usize;
+    let nj = (target_pos.1 as i64 + dj).clamp(0, mino_range.1 as i64 - 1) as usize;
+    (ni, nj)
+}
+
 fn investigate(
     k: usize,
     query_count: usize,
@@ -125,15 +150,8 @@ impl<'a> MinoOptimizer<'a> {
     }
 
     fn optimize(&mut self, iteration: usize) {
-        let iteration = 10000;
-        let mut delta = vec![];
-        for di in -2..=2 {
-            for dj in -2..=2 {
-                let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
-                let cnt = (16. / dist.powf(2.)).round().max(1.) as usize;
-                delta.extend(vec![(di, dj); cnt]);
-            }
-        }
+        let delta_max_dist = 2;
+        let delta = create_weighted_delta(delta_max_dist);
 
         for _t in 0..iteration {
             let p = rnd::nextf();
@@ -148,7 +166,6 @@ impl<'a> MinoOptimizer<'a> {
             };
             if adopted {
                 self.adopt_count += 1;
-                // eprintln!("[{:6}], p = {:.3}", _t, p);
             }
         }
 

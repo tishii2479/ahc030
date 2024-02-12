@@ -20,6 +20,8 @@ if __name__ == "__main__":
     subprocess.run(f"pbcopy < tools/out/{file}.txt", shell=True)
 
     # 過去ログとの比較
+    input_df = pd.read_csv("./log/input.csv")
+    print(input_df[(input_df.input_file == f"tools/in/{file}.txt")])
     df = pd.read_csv("./log/database.csv")
     print(
         df[(df.input_file == f"tools/in/{file}.txt")][

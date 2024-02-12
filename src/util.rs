@@ -162,14 +162,3 @@ pub fn exit(interactor: &mut Interactor, input: &Input) {
     );
     std::process::exit(0);
 }
-
-pub fn random_delta(
-    target_pos: (usize, usize),
-    mino_range: (usize, usize),
-    delta: &Vec<(i64, i64)>,
-) -> (usize, usize) {
-    let (di, dj) = delta[rnd::gen_range(0, delta.len())];
-    let ni = (target_pos.0 as i64 + di).clamp(0, mino_range.0 as i64 - 1) as usize;
-    let nj = (target_pos.1 as i64 + dj).clamp(0, mino_range.1 as i64 - 1) as usize;
-    (ni, nj)
-}

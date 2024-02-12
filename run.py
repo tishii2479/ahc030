@@ -94,7 +94,7 @@ class Runner:
         if columns is not None:
             assert 1 <= len(columns) <= 2
             for column in columns:
-                score_df[f"{column}_cut"] = pd.cut(score_df[column], 5)
+                score_df[f"{column}_cut"] = pd.cut(score_df[column], 4)
             cut_columns = list(map(lambda col: f"{col}_cut", columns))
             if len(columns) == 1:
                 self.logger.info(
@@ -149,7 +149,7 @@ class Runner:
         if columns is not None:
             assert 1 <= len(columns) <= 2
             for column in columns:
-                score_df[f"{column}_cut"] = pd.cut(score_df[column], 2)
+                score_df[f"{column}_cut"] = pd.cut(score_df[column], 4)
             cut_columns = list(map(lambda col: f"{col}_cut", columns))
             if len(columns) == 1:
                 self.logger.info(
@@ -172,15 +172,17 @@ class Runner:
         )
         database_df = pd.merge(database_df, best_scores, on="input_file", how="left")
         database_df["relative_score"] = database_df["best_score"] / database_df["score"]
-        self.logger.info(
+        score_df = (
             database_df[
                 ~database_df.solver_version.str.startswith("optuna")
                 & ~database_df.solver_version.str.startswith("solver-")
             ]
             .groupby("solver_version")[["relative_score", "score"]]
             .mean()
-            .sort_values(by="relative_score", ascending=False)[:30]
+            .sort_values(by="relative_score", ascending=False)
         )
+        self.logger.info(score_df[:30])
+        self.logger.info(score_df[-3:])
 
         return database_df
 
