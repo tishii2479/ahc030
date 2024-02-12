@@ -181,7 +181,7 @@ class Runner:
             .mean()
             .sort_values(by="relative_score", ascending=False)
         )
-        self.logger.info(score_df[:30])
+        self.logger.info(score_df[:50])
         self.logger.info(score_df[-3:])
 
         return database_df
@@ -214,6 +214,7 @@ class Result(IResult):
     solver_version: str
     score: int
     duration: float
+    query_count: int
 
     def __init__(self, stderr: str, input_file: str, solver_version: str):
         self.input_file = input_file
@@ -229,6 +230,7 @@ class Result(IResult):
             exit(1)
         self.score = result_json["score"]
         self.duration = result_json["duration"]
+        self.query_count = result_json["query_count"]
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ const D: [(usize, usize); 8] = [
 ];
 
 fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
-    let mut delta = vec![];
+    let mut delta = vec![]; // TODO: reserve
     let p = 2.; // :param
     for di in -delta_max_dist..=delta_max_dist {
         for dj in -delta_max_dist..=delta_max_dist {
@@ -59,7 +59,7 @@ fn add_delta(
 fn investigate(
     k: usize,
     query_count: usize,
-    v: &Vec<Vec<usize>>,
+    v_history: &Vec<Vec<Vec<usize>>>,
     interactor: &mut Interactor,
     input: &Input,
 ) -> Vec<(Vec<(usize, usize)>, f64)> {
@@ -67,12 +67,12 @@ fn investigate(
     let mut queries = Vec::with_capacity(query_count);
 
     let mut high_prob_v = vec![];
-    if v.len() > 0 {
+    if v_history.len() > 0 {
         for i in 0..input.n {
             for j in 0..input.n {
                 for (di, dj) in D {
                     let (ni, nj) = (i + di, j + dj);
-                    if ni < input.n && nj < input.n && v[ni][nj] > 0 {
+                    if ni < input.n && nj < input.n && v_history[v_history.len() - 1][ni][nj] > 0 {
                         high_prob_v.push((i, j));
                         break;
                     }
@@ -293,6 +293,8 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     // 初期情報を集める
     let mut queries = investigate(k, base_query_count, &vec![], interactor, input);
 
+    let mut v_history = vec![];
+
     loop {
         // ミノの配置を最適化
         let mut optimizer = MinoOptimizer::new(&queries, &input);
@@ -310,12 +312,27 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         if interactor.output_answer(&s) {
             exit(interactor);
         }
+        v_history.push(v);
 
         // 追加情報を集める
         let query_count = base_query_count.min(query_limit - interactor.query_count - 1);
-        let _queries = investigate(k, query_count, &v, interactor, input);
+        let _queries = investigate(k, query_count, &v_history, interactor, input);
         queries.extend(_queries);
     }
+}
+
+fn solve_greedy(interactor: &mut Interactor, input: &Input) {
+    let mut s = vec![];
+    for i in 0..input.n {
+        for j in 0..input.n {
+            let x = interactor.output_query(&vec![(i, j)]);
+            if x > 0 {
+                s.push((i, j));
+            }
+        }
+    }
+    assert!(interactor.output_answer(&s));
+    exit(interactor);
 }
 
 fn main() {
@@ -327,5 +344,9 @@ fn main() {
     } else {
         None
     };
-    solve(&mut interactor, &input, &answer);
+    if input.m < 13 {
+        solve(&mut interactor, &input, &answer);
+    } else {
+        solve_greedy(&mut interactor, &input);
+    }
 }
