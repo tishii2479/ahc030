@@ -139,10 +139,12 @@ impl<'a> MinoOptimizer<'a> {
             let p = rnd::nextf();
             let adopted = if p < 0.2 {
                 self.action_slide_one(&delta)
-            } else if p < 0.4 {
+            } else if p < 0.3 {
                 self.action_move_one()
+            } else if p < 1. {
+                self.action_swap(2, &delta)
             } else {
-                self.action_swap_two(&delta)
+                self.action_swap(3, &delta)
             };
             if adopted {
                 self.adopt_count += 1;
@@ -153,20 +155,9 @@ impl<'a> MinoOptimizer<'a> {
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
     }
 
-    fn action_swap_two(&mut self, delta: &Vec<(i64, i64)>) -> bool {
-        fn random_delta(
-            target_pos: (usize, usize),
-            mino_range: (usize, usize),
-            delta: &Vec<(i64, i64)>,
-        ) -> (usize, usize) {
-            let (di, dj) = delta[rnd::gen_range(0, delta.len())];
-            let ni = (target_pos.0 as i64 + di).clamp(0, mino_range.0 as i64 - 1) as usize;
-            let nj = (target_pos.1 as i64 + dj).clamp(0, mino_range.1 as i64 - 1) as usize;
-            (ni, nj)
-        }
-
+    fn action_swap(&mut self, r: usize, delta: &Vec<(i64, i64)>) -> bool {
+        let r = r.min(self.input.m);
         let mut score_diff = 0.;
-        let r = 2;
         let mut mino_is = Vec::with_capacity(r);
         let mut next_mino_poss = Vec::with_capacity(r);
         while mino_is.len() < r {
@@ -179,7 +170,7 @@ impl<'a> MinoOptimizer<'a> {
         }
         for i in 0..r {
             let next_mino_pos = random_delta(
-                self.mino_pos[mino_is[i ^ 1]],
+                self.mino_pos[mino_is[(i + 1) % r]],
                 self.mino_range[mino_is[i]],
                 delta,
             );

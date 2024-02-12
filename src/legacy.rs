@@ -79,7 +79,7 @@ pub fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
     }
 }
 
-fn action_move_two(&mut self) -> bool {
+fn action_move_two(&mut self, delta: &Vec<(i64, i64)>) -> bool {
     let mut score_diff = 0.;
     let r = 2; // :param、NOTE: 可変にできる
     let sample_size = 9; // :param
@@ -98,10 +98,7 @@ fn action_move_two(&mut self) -> bool {
     let mut evals: Vec<Vec<(f64, (usize, usize))>> = vec![vec![]; r];
     for (i, &mino_i) in mino_is.iter().enumerate() {
         for _ in 0..sample_size {
-            let next_mino_pos = (
-                rnd::gen_range(0, self.mino_range[mino_i].0),
-                rnd::gen_range(0, self.mino_range[mino_i].1),
-            );
+            let next_mino_pos = random_delta(self.mino_pos[i ^ 1], self.mino_range[mino_i], delta);
             let eval = self.toggle_mino(mino_i, next_mino_pos, true);
             evals[i].push((eval, next_mino_pos));
             self.toggle_mino(mino_i, next_mino_pos, false);
