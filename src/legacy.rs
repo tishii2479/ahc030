@@ -78,3 +78,91 @@ pub fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
         eprintln!();
     }
 }
+
+fn action_move_two(&mut self) -> bool {
+    let mut score_diff = 0.;
+    let r = 2; // :param、NOTE: 可変にできる
+    let sample_size = 9; // :param
+    let cand_size = 3; // :param
+
+    let mut mino_is = Vec::with_capacity(r);
+    while mino_is.len() < r {
+        let mino_i = rnd::gen_range(0, self.input.m);
+        if mino_is.contains(&mino_i) {
+            continue;
+        }
+        mino_is.push(mino_i);
+        score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
+    }
+
+    let mut evals: Vec<Vec<(f64, (usize, usize))>> = vec![vec![]; r];
+    for (i, &mino_i) in mino_is.iter().enumerate() {
+        for _ in 0..sample_size {
+            let next_mino_pos = (
+                rnd::gen_range(0, self.mino_range[mino_i].0),
+                rnd::gen_range(0, self.mino_range[mino_i].1),
+            );
+            let eval = self.toggle_mino(mino_i, next_mino_pos, true);
+            evals[i].push((eval, next_mino_pos));
+            self.toggle_mino(mino_i, next_mino_pos, false);
+        }
+        evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
+    }
+
+    let adopted = self.dfs(&mut vec![0; r], 0, cand_size, &mino_is, &evals, score_diff);
+    if adopted {
+        return true;
+    } else {
+        for mino_i in mino_is {
+            self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
+        }
+    }
+    false
+}
+
+fn dfs(
+    &mut self,
+    v: &mut Vec<usize>,
+    mino_i: usize,
+    cand_size: usize,
+    mino_is: &Vec<usize>,
+    evals: &Vec<Vec<(f64, (usize, usize))>>,
+    score_diff: f64,
+) -> bool {
+    if mino_i == v.len() {
+        let adopt = score_diff < -EPS;
+        if adopt {
+            // eprintln!(
+            //     "{:10.3} -> {:10.3} ({:10.3})",
+            //     self.score,
+            //     self.score + score_diff,
+            //     score_diff
+            // );
+            self.score += score_diff;
+            for i in 0..v.len() {
+                eprintln!(
+                    "m:{:?},{:?},{:?}",
+                    self.mino_pos[mino_is[i]],
+                    evals[i][v[i]].1,
+                    (
+                        self.mino_pos[mino_is[i]].0 as i64 - evals[i][v[i]].1 .0 as i64,
+                        self.mino_pos[mino_is[i]].1 as i64 - evals[i][v[i]].1 .1 as i64
+                    )
+                );
+                self.mino_pos[mino_is[i]] = evals[i][v[i]].1;
+            }
+            return true; // NOTE: 最善の候補は使っていない
+        }
+        return false;
+    }
+    for cand_i in 0..cand_size {
+        v[mino_i] = cand_i;
+        let score_diff =
+            score_diff + self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, true);
+        if self.dfs(v, mino_i + 1, cand_size, mino_is, evals, score_diff) {
+            return true;
+        }
+        self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, false);
+    }
+    false
+}
