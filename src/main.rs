@@ -2,6 +2,8 @@ mod def;
 mod interactor;
 mod util;
 
+use std::collections::HashSet;
+
 use crate::def::*;
 use crate::interactor::*;
 use crate::util::*;
@@ -150,28 +152,45 @@ impl<'a> MinoOptimizer<'a> {
         }
     }
 
-    fn optimize(&mut self, iteration: usize) {
+    fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
         let delta_max_dist = 2; // :param
         let weighted_delta = create_weighted_delta(delta_max_dist);
 
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
-        for _t in 0..iteration {
+        let start_temp = self.input.n as f64 * self.queries.len() as f64 / 10.;
+        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 10000.;
+
+        let mut iteration = 0;
+
+        let mut cands = vec![];
+
+        let start_time = time::elapsed_seconds();
+
+        while time::elapsed_seconds() < time_limit {
             mino_is.clear();
             next_mino_poss.clear();
 
             let p = rnd::nextf();
             let score_diff = if p < 0.2 {
-                self.action_slide(&mut mino_is, &mut next_mino_poss, 1, &weighted_delta)
+                self.action_slide(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
             } else if p < 0.3 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
+            } else if p < 0.9 {
+                self.action_swap(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
             } else {
-                self.action_swap(&mut mino_is, &mut next_mino_poss, 2, &weighted_delta)
+                self.action_swap(3, &mut mino_is, &mut next_mino_poss, &weighted_delta)
             };
 
-            let adopted = score_diff < -EPS;
-            if adopted {
+            let adopt = if is_anneal {
+                let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
+                let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
+                (-score_diff / temp).exp() > rnd::nextf()
+            } else {
+                score_diff < -EPS
+            };
+            if adopt {
                 self.score += score_diff;
                 for i in 0..mino_is.len() {
                     self.mino_pos[mino_is[i]] = next_mino_poss[i];
@@ -183,16 +202,24 @@ impl<'a> MinoOptimizer<'a> {
                     self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
                 }
             }
+            iteration += 1;
+
+            if (iteration + 1) % 1000 == 0 {
+                eprintln!("[{:.4}] {:15.5}", time::elapsed_seconds(), self.score);
+                cands.push((self.score, self.mino_pos.clone()));
+            }
         }
 
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
+
+        cands
     }
 
     fn action_swap(
         &mut self,
+        r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-        r: usize,
         weighted_delta: &Vec<(i64, i64)>,
     ) -> f64 {
         let r = r.min(self.input.m);
@@ -221,9 +248,9 @@ impl<'a> MinoOptimizer<'a> {
 
     fn action_slide(
         &mut self,
+        r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-        r: usize,
         weighted_delta: &Vec<(i64, i64)>,
     ) -> f64 {
         let r = r.min(self.input.m);
@@ -285,39 +312,40 @@ impl<'a> MinoOptimizer<'a> {
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
-    let query_limit = input.n * input.n * 2;
+    let query_limit = input.n.pow(2) * 2;
     let k = input.n * 2; // :param
-    let base_query_count = input.n; // :param
-    let iteration = 10000;
 
-    // 初期情報を集める
-    let mut queries = investigate(k, base_query_count, &vec![], interactor, input);
+    let queries = investigate(k, query_limit - 50, &vec![], interactor, input);
 
-    let mut v_history = vec![];
+    // ミノの配置を最適化
+    let mut optimizer = MinoOptimizer::new(&queries, &input);
+    let mut cands = optimizer.optimize(2.8, true);
+    cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-    loop {
-        // ミノの配置を最適化
-        let mut optimizer = MinoOptimizer::new(&queries, &input);
-        optimizer.optimize(iteration);
+    let mut checked_s = HashSet::new();
 
-        let v = get_v(&optimizer.mino_pos, &input.minos, input.n);
-        vis_v(&v, answer);
-
-        eprintln!("mino_loss:   {:10.5}", optimizer.score);
-        eprintln!("error_count: {}", error_count(&v, answer));
-        eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
-        eprintln!("total_cost:  {:.5}", interactor.total_cost);
-
+    for (mino_loss, mino_pos) in cands {
+        let v = get_v(&mino_pos, &input.minos, input.n);
         let s = get_s(&v);
+        if checked_s.contains(&s) {
+            continue;
+        }
+
+        vis_v(&v, answer);
+        eprint!("mino_loss:   {:10.5}", mino_loss);
+        eprintln!(", error_count: {}", error_count(&v, answer));
+        // eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
+        // eprintln!("total_cost:  {:.5}", interactor.total_cost);
+
         if interactor.output_answer(&s) {
             exit(interactor);
         }
-        v_history.push(v);
 
-        // 追加情報を集める
-        let query_count = base_query_count.min(query_limit - interactor.query_count - 1);
-        let _queries = investigate(k, query_count, &v_history, interactor, input);
-        queries.extend(_queries);
+        checked_s.insert(s);
+    }
+
+    loop {
+        interactor.output_answer(&vec![]);
     }
 }
 
@@ -345,5 +373,6 @@ fn main() {
     } else {
         None
     };
+
     solve(&mut interactor, &input, &answer);
 }

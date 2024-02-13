@@ -145,6 +145,7 @@ class Runner:
         self.logger.info(
             f"Longest duration: {score_df.sort_values(by='duration').iloc[-1]}"
         )
+        self.logger.info(f"Fail count: {(score_df['score'] == 1000.).sum()}")
 
         if columns is not None:
             assert 1 <= len(columns) <= 2

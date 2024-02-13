@@ -79,13 +79,17 @@ pub fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
     }
 }
 
-fn action_move_two(&mut self, delta: &Vec<(i64, i64)>) -> bool {
+fn action_move_two(
+    &mut self,
+    mino_is: &mut Vec<usize>,
+    next_mino_poss: &mut Vec<(usize, usize)>,
+    weighted_delta: &Vec<(i64, i64)>,
+) -> f64 {
     let mut score_diff = 0.;
     let r = 2; // :param、NOTE: 可変にできる
     let sample_size = 9; // :param
     let cand_size = 3; // :param
 
-    let mut mino_is = Vec::with_capacity(r);
     while mino_is.len() < r {
         let mino_i = rnd::gen_range(0, self.input.m);
         if mino_is.contains(&mino_i) {
@@ -98,7 +102,8 @@ fn action_move_two(&mut self, delta: &Vec<(i64, i64)>) -> bool {
     let mut evals: Vec<Vec<(f64, (usize, usize))>> = vec![vec![]; r];
     for (i, &mino_i) in mino_is.iter().enumerate() {
         for _ in 0..sample_size {
-            let next_mino_pos = random_delta(self.mino_pos[i ^ 1], self.mino_range[mino_i], delta);
+            let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
+            let next_mino_pos = add_delta(self.mino_pos[mino_i], self.mino_range[mino_i], delta);
             let eval = self.toggle_mino(mino_i, next_mino_pos, true);
             evals[i].push((eval, next_mino_pos));
             self.toggle_mino(mino_i, next_mino_pos, false);
@@ -106,62 +111,31 @@ fn action_move_two(&mut self, delta: &Vec<(i64, i64)>) -> bool {
         evals[i].sort_by(|a, b| a.partial_cmp(b).unwrap());
     }
 
-    let adopted = self.dfs(&mut vec![0; r], 0, cand_size, &mino_is, &evals, score_diff);
-    if adopted {
-        return true;
-    } else {
-        for mino_i in mino_is {
-            self.toggle_mino(mino_i, self.mino_pos[mino_i], true);
-        }
-    }
-    false
-}
+    let mut best_score_diff = 1e50;
+    let mut best_ij = (0, 0);
+    for i in 0..cand_size {
+        for j in 0..cand_size {
+            let mut a = score_diff;
+            a += self.toggle_mino(mino_is[0], evals[0][i].1, true);
+            a += self.toggle_mino(mino_is[1], evals[1][j].1, true);
 
-fn dfs(
-    &mut self,
-    v: &mut Vec<usize>,
-    mino_i: usize,
-    cand_size: usize,
-    mino_is: &Vec<usize>,
-    evals: &Vec<Vec<(f64, (usize, usize))>>,
-    score_diff: f64,
-) -> bool {
-    if mino_i == v.len() {
-        let adopt = score_diff < -EPS;
-        if adopt {
-            // eprintln!(
-            //     "{:10.3} -> {:10.3} ({:10.3})",
-            //     self.score,
-            //     self.score + score_diff,
-            //     score_diff
-            // );
-            self.score += score_diff;
-            for i in 0..v.len() {
-                eprintln!(
-                    "m:{:?},{:?},{:?}",
-                    self.mino_pos[mino_is[i]],
-                    evals[i][v[i]].1,
-                    (
-                        self.mino_pos[mino_is[i]].0 as i64 - evals[i][v[i]].1 .0 as i64,
-                        self.mino_pos[mino_is[i]].1 as i64 - evals[i][v[i]].1 .1 as i64
-                    )
-                );
-                self.mino_pos[mino_is[i]] = evals[i][v[i]].1;
+            if a < best_score_diff {
+                best_ij = (i, j);
+                best_score_diff = a;
             }
-            return true; // NOTE: 最善の候補は使っていない
+
+            self.toggle_mino(mino_is[0], evals[0][i].1, false);
+            self.toggle_mino(mino_is[1], evals[1][j].1, false);
         }
-        return false;
     }
-    for cand_i in 0..cand_size {
-        v[mino_i] = cand_i;
-        let score_diff =
-            score_diff + self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, true);
-        if self.dfs(v, mino_i + 1, cand_size, mino_is, evals, score_diff) {
-            return true;
-        }
-        self.toggle_mino(mino_is[mino_i], evals[mino_i][v[mino_i]].1, false);
-    }
-    false
+
+    let (i, j) = best_ij;
+    self.toggle_mino(mino_is[0], evals[0][i].1, true);
+    self.toggle_mino(mino_is[1], evals[1][j].1, true);
+    next_mino_poss.push(evals[0][i].1);
+    next_mino_poss.push(evals[1][j].1);
+
+    best_score_diff
 }
 
 fn investigate(
