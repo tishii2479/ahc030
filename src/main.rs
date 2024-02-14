@@ -52,10 +52,18 @@ fn add_delta(
     mino_range: (usize, usize),
     delta: (i64, i64),
 ) -> (usize, usize) {
-    // NOTE: 外れているならNoneを返す、現状は少し偏っている
+    // TODO: 外れているならNoneを返す、現状は少し偏っている
     let ni = (from_pos.0 as i64 + delta.0).clamp(0, mino_range.0 as i64 - 1) as usize;
     let nj = (from_pos.1 as i64 + delta.1).clamp(0, mino_range.1 as i64 - 1) as usize;
     (ni, nj)
+}
+
+fn adjusted_q_len(x: usize) -> f64 {
+    if x == 1 {
+        1e-5
+    } else {
+        x as f64
+    }
 }
 
 fn investigate(
@@ -96,7 +104,11 @@ fn investigate(
             }
         }
         let obs_x = interactor.output_query(&s) as f64;
-        let obs_x = ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.); // NOTE: 本当にあってる？
+        let obs_x = if k > 1 {
+            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
+        } else {
+            obs_x
+        };
         queries.push((s, obs_x));
     }
 
@@ -137,7 +149,7 @@ impl<'a> MinoOptimizer<'a> {
                 query_cache[q_i] += v[i][j] as f64;
                 query_indices[i][j].push(q_i);
             }
-            score += (query_cache[q_i] - x).powf(2.);
+            score += (query_cache[q_i] - x).powf(2.) / adjusted_q_len(s.len());
         }
 
         MinoOptimizer {
@@ -160,7 +172,7 @@ impl<'a> MinoOptimizer<'a> {
         let mut next_mino_poss = vec![];
 
         let start_temp = self.input.n as f64 * self.queries.len() as f64 / 10.;
-        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 10000.;
+        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 1000.;
 
         let mut iteration = 0;
 
@@ -205,7 +217,7 @@ impl<'a> MinoOptimizer<'a> {
             iteration += 1;
 
             if (iteration + 1) % 1000 == 0 {
-                eprintln!("[{:.4}] {:15.5}", time::elapsed_seconds(), self.score);
+                // eprintln!("[{:.4}] {:15.5}", time::elapsed_seconds(), self.score);
                 cands.push((self.score, self.mino_pos.clone()));
             }
         }
@@ -298,13 +310,16 @@ impl<'a> MinoOptimizer<'a> {
         for &(_i, _j) in self.input.minos[mino_i].iter() {
             let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
             for &q_i in self.query_indices[i][j].iter() {
-                score_diff -= (self.query_cache[q_i] - self.queries[q_i].1).powf(2.);
+                let q_len = self.queries[q_i].0.len();
+                score_diff -=
+                    (self.query_cache[q_i] - self.queries[q_i].1).powf(2.) / adjusted_q_len(q_len);
                 if turn_on {
                     self.query_cache[q_i] += 1.;
                 } else {
                     self.query_cache[q_i] -= 1.;
                 }
-                score_diff += (self.query_cache[q_i] - self.queries[q_i].1).powf(2.);
+                score_diff +=
+                    (self.query_cache[q_i] - self.queries[q_i].1).powf(2.) / adjusted_q_len(q_len);
             }
         }
         score_diff
@@ -313,18 +328,20 @@ impl<'a> MinoOptimizer<'a> {
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let query_limit = input.n.pow(2) * 2;
-    let k = input.n * 2; // :param
+    let k = input.n; // :param
 
-    let queries = investigate(k, query_limit - 50, &vec![], interactor, input);
+    let mut queries = investigate(k, query_limit / 2, &vec![], interactor, input);
+    let mut checked_s = HashSet::new();
+
+    let _queries = investigate(1, query_limit / 2 - 50, &vec![], interactor, input);
+    queries.extend(_queries);
 
     // ミノの配置を最適化
     let mut optimizer = MinoOptimizer::new(&queries, &input);
     let mut cands = optimizer.optimize(2.8, true);
     cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-    let mut checked_s = HashSet::new();
-
-    for (mino_loss, mino_pos) in cands {
+    for (mino_loss, mino_pos) in cands.iter() {
         let v = get_v(&mino_pos, &input.minos, input.n);
         let s = get_s(&v);
         if checked_s.contains(&s) {
@@ -345,7 +362,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     }
 
     loop {
-        interactor.output_answer(&vec![]);
+        interactor.output_answer(&vec![(0, 0)]);
     }
 }
 

@@ -168,6 +168,7 @@ class Runner:
     def list_solvers(self) -> pd.DataFrame:
         database_df = pd.read_csv(self.database_csv)
         database_df = database_df[~database_df.solver_version.str.endswith("-1000")]
+        database_df = database_df[~database_df.solver_version.str.endswith("-500")]
         best_scores = (
             database_df.groupby("input_file")["score"].min().rename("best_score")
         )
