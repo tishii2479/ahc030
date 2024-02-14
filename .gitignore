@@ -5,3 +5,4 @@ vis.html
 !/tools/src
 test.py
 main.py
+*.log

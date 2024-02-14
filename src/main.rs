@@ -22,7 +22,6 @@ macro_rules! eprintln {
     ($($_:tt)*) => {};
 }
 
-const EPS: f64 = 1e-6;
 const D: [(usize, usize); 8] = [
     (0, 1),
     (1, 0),
@@ -53,7 +52,7 @@ fn adjusted_q_len(x: usize) -> f64 {
     if x == 1 {
         1e-1 // :param
     } else {
-        (x as f64).sqrt() // :param
+        x as f64 // :param
     }
 }
 
@@ -123,19 +122,23 @@ pub struct MinoOptimizer<'a> {
 
 impl<'a> MinoOptimizer<'a> {
     pub fn new(
+        initial_mino_pos: Option<Vec<(usize, usize)>>,
         queries: &'a Vec<(Vec<(usize, usize)>, f64)>,
         input: &'a Input,
     ) -> MinoOptimizer<'a> {
         let mino_range = get_mino_range(&input);
-        let mut mino_pos = Vec::with_capacity(input.m);
-
-        // TODO: 初期解の改善
-        for k in 0..input.m {
-            mino_pos.push((
-                rnd::gen_range(0, mino_range[k].0),
-                rnd::gen_range(0, mino_range[k].1),
-            ));
-        }
+        let mino_pos = if let Some(initial_mino_pos) = initial_mino_pos {
+            initial_mino_pos
+        } else {
+            let mut mino_pos = Vec::with_capacity(input.m);
+            for k in 0..input.m {
+                mino_pos.push((
+                    rnd::gen_range(0, mino_range[k].0),
+                    rnd::gen_range(0, mino_range[k].1),
+                ));
+            }
+            mino_pos
+        };
 
         let v = get_v(&mino_pos, &input.minos, input.n);
         let mut query_cache = vec![0.; queries.len()];
@@ -180,6 +183,7 @@ impl<'a> MinoOptimizer<'a> {
         let mut iteration = 0;
 
         let mut cands = vec![];
+        let mut score_log = vec![];
 
         let start_time = time::elapsed_seconds();
 
@@ -188,9 +192,9 @@ impl<'a> MinoOptimizer<'a> {
             next_mino_poss.clear();
 
             let p = rnd::nextf();
-            let score_diff = if p < 0.2 {
+            let score_diff = if p < 0.5 {
                 self.action_slide(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
-            } else if p < 0.3 {
+            } else if p < 0.6 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
             } else if p < 0.9 {
                 self.action_swap(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
@@ -203,6 +207,7 @@ impl<'a> MinoOptimizer<'a> {
                 let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
                 (-score_diff / temp).exp() > rnd::nextf()
             } else {
+                const EPS: f64 = 1e-6;
                 score_diff < -EPS
             };
             if adopt {
@@ -222,7 +227,14 @@ impl<'a> MinoOptimizer<'a> {
             if (iteration + 1) % 1000 == 0 {
                 // eprintln!("[{:.4}] {:15.5}", time::elapsed_seconds(), self.score);
                 cands.push((self.score, self.mino_pos.clone()));
+                score_log.push(self.score);
             }
+        }
+
+        if cfg!(feature = "local") {
+            use std::io::Write;
+            let mut file = std::fs::File::create("score.log").unwrap();
+            writeln!(&mut file, "{:?}", score_log).unwrap();
         }
 
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
@@ -353,7 +365,7 @@ pub fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer:
         queries.extend(_queries);
 
         // ミノの配置を最適化
-        let mut optimizer = MinoOptimizer::new(&queries, &input);
+        let mut optimizer = MinoOptimizer::new(None, &queries, &input);
         let mut cands = optimizer.optimize(time::elapsed_seconds() + 1.0, true);
         cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
@@ -412,7 +424,7 @@ fn get_query_count(input: &Input) -> usize {
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
-    let k = input.n * 2; // :param
+    let k = (input.n as f64 * (3. - input.eps * 10.)).round() as usize; // :param
 
     let mut queries = vec![];
     let mut fixed = vec![vec![false; input.n]; input.n];
@@ -441,7 +453,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         } else {
             time_limit - time::elapsed_seconds()
         };
-        let mut optimizer = MinoOptimizer::new(&queries, &input);
+        let mut optimizer = MinoOptimizer::new(None, &queries, &input);
         let mut cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
         cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 

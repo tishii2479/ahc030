@@ -1,6 +1,8 @@
+import ast
 import subprocess
 import sys
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 if __name__ == "__main__":
@@ -28,3 +30,9 @@ if __name__ == "__main__":
             ["solver_version", "score"]
         ].sort_values(by="score")[:20]
     )
+
+    with open("./score.log", "r") as f:
+        score_log = ast.literal_eval(f.read())
+
+    plt.plot(score_log)
+    plt.show()
