@@ -139,10 +139,11 @@ fn action_move_two(
     best_score_diff
 }
 
-fn investigate(
+pub fn investigate(
     k: usize,
     query_count: usize,
-    v: &Vec<Vec<Vec<usize>>>,
+    v_history: &Vec<Vec<Vec<usize>>>,
+    fixed: &mut Vec<Vec<bool>>,
     interactor: &mut Interactor,
     input: &Input,
 ) -> Vec<(Vec<(usize, usize)>, f64)> {
@@ -151,27 +152,27 @@ fn investigate(
     let mut mean = vec![vec![0.; input.n]; input.n];
     for i in 0..input.n {
         for j in 0..input.n {
-            for t in 0..v.len() {
+            for t in 0..v_history.len() {
                 for (di, dj) in D {
                     let (ni, nj) = (i + di, j + dj);
-                    if ni < input.n && nj < input.n && v[t][ni][nj] > 0 {
+                    if ni < input.n && nj < input.n && v_history[t][ni][nj] > 0 {
                         mean[i][j] += 1.;
                         break;
                     }
                 }
             }
-            mean[i][j] /= v.len() as f64;
+            mean[i][j] /= v_history.len() as f64;
         }
     }
     let mut var = vec![vec![0.; input.n]; input.n];
     let mut var_sum = 0.;
     for i in 0..input.n {
         for j in 0..input.n {
-            for t in 0..v.len() {
-                var[i][j] += (v[t][i][j] as f64 - mean[i][j]).powf(2.);
+            for t in 0..v_history.len() {
+                var[i][j] += (v_history[t][i][j] as f64 - mean[i][j]).powf(2.);
             }
-            var[i][j] /= v.len() as f64;
-            var[i][j] = var[i][j].max(0.5);
+            var[i][j] /= v_history.len() as f64;
+            var[i][j] = var[i][j].max(0.1);
             var_sum += var[i][j];
         }
     }
@@ -190,7 +191,7 @@ fn investigate(
         let mut s = vec![];
         while s.len() < k {
             let a = prob_v[rnd::gen_range(0, prob_v.len())];
-            if !s.contains(&a) {
+            if !s.contains(&a) && !fixed[a.0][a.1] {
                 s.push(a);
             }
         }

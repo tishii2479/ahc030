@@ -60,21 +60,22 @@ pub mod time {
     }
 }
 
-// pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, i64)>, input: &Input) {
-//     let mut c = vec![vec![0; input.n]; input.n];
-//     for (s, _) in queries.iter() {
-//         for &(i, j) in s {
-//             c[i][j] += 1;
-//         }
-//     }
-//     for i in 0..input.n {
-//         for j in 0..input.n {
-//             eprint!("{:4}", c[i][j]);
-//         }
-//         eprintln!();
-//     }
-// }
+pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, f64)>, input: &Input) {
+    let mut c = vec![vec![0; input.n]; input.n];
+    for (s, _) in queries.iter() {
+        for &(i, j) in s {
+            c[i][j] += 1;
+        }
+    }
+    for i in 0..input.n {
+        for j in 0..input.n {
+            eprint!("{:4}", c[i][j]);
+        }
+        eprintln!();
+    }
+}
 
+#[allow(unused)]
 pub fn vis_v(v: &Vec<Vec<usize>>, answer: &Option<Answer>) {
     let has_answer = answer.is_some();
     for i in 0..v.len() {
@@ -157,21 +158,6 @@ pub fn exit(interactor: &mut Interactor) {
         interactor.query_count,
     );
     std::process::exit(0);
-}
-
-pub fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
-    let mut delta = vec![]; // TODO: reserve
-    let p = 2.; // :param
-    for di in -delta_max_dist..=delta_max_dist {
-        for dj in -delta_max_dist..=delta_max_dist {
-            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
-            let cnt = ((delta_max_dist as f64 * 2.).powf(p) / dist.powf(p))
-                .round()
-                .max(1.) as usize;
-            delta.extend(vec![(di, dj); cnt]);
-        }
-    }
-    delta
 }
 
 pub fn add_delta(

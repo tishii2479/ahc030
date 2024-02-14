@@ -16,7 +16,22 @@ const D: [(usize, usize); 8] = [
     (1, !0),
 ];
 
-pub fn adjusted_q_len(x: usize) -> f64 {
+fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
+    let mut delta = vec![]; // TODO: reserve
+    let p = 2.; // :param
+    for di in -delta_max_dist..=delta_max_dist {
+        for dj in -delta_max_dist..=delta_max_dist {
+            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
+            let cnt = ((delta_max_dist as f64 * 2.).powf(p) / dist.powf(p))
+                .round()
+                .max(1.) as usize;
+            delta.extend(vec![(di, dj); cnt]);
+        }
+    }
+    delta
+}
+
+fn adjusted_q_len(x: usize) -> f64 {
     if x == 1 {
         1e-1
     } else {
