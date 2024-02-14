@@ -483,7 +483,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let base_query_count = get_query_count(input).clamp(20, query_limit);
     eprintln!("base_query_count = {}", base_query_count);
 
-    let steps: Vec<f64> = vec![0.0, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5]
+    let steps: Vec<f64> = vec![0.0, 0.4, 0.8, 1.2, 1.6, 2.0]
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
         .collect();
@@ -491,8 +491,12 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let step_ratio: Vec<f64> = steps.iter().map(|x| x.sqrt() / step_sum).collect();
 
     for i in 1..steps.len() {
-        let query_count = (((steps[i] - steps[i - 1]) * base_query_count as f64).round() as usize)
-            .clamp(0, query_limit - interactor.query_count - 5);
+        let query_count = if i < steps.len() - 1 {
+            (((steps[i] - steps[i - 1]) * base_query_count as f64).round() as usize)
+                .clamp(0, query_limit - interactor.query_count - 5)
+        } else {
+            (query_limit as i64 - interactor.query_count as i64 - 5).max(0) as usize
+        };
         let mut _queries = investigate(k, query_count, &v_history, &mut fixed, interactor, input);
         queries.extend(_queries);
 
