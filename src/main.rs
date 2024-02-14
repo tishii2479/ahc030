@@ -47,9 +47,15 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut checked_s = HashSet::new();
     let mut v_history = vec![];
 
-    let base_query_count = get_query_count(input).clamp(40, query_limit);
+    let base_query_count = get_query_count(input).clamp(20, query_limit);
     eprintln!("base_query_count = {}", base_query_count);
-    let steps = vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 1e5];
+
+    let steps: Vec<f64> = vec![0.0, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5]
+        .into_iter()
+        .filter(|x| x * (base_query_count as f64) < query_limit as f64)
+        .collect();
+    let step_sum: f64 = steps.iter().map(|x| x.sqrt()).sum();
+    let step_ratio: Vec<f64> = steps.iter().map(|x| x.sqrt() / step_sum).collect();
 
     for i in 1..steps.len() {
         let query_count = (((steps[i] - steps[i - 1]) * base_query_count as f64).round() as usize)
@@ -58,7 +64,11 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         queries.extend(_queries);
 
         // ミノの配置を最適化
-        let optimize_time_limit = time_limit / steps.len() as f64;
+        let optimize_time_limit = if i < steps.len() - 1 {
+            time_limit * step_ratio[i]
+        } else {
+            time_limit - time::elapsed_seconds()
+        };
         let mut optimizer = MinoOptimizer::new(&queries, &input);
         let mut cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
         cands.sort_by(|a, b| a.partial_cmp(b).unwrap());

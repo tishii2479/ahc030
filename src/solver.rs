@@ -155,8 +155,8 @@ impl<'a> MinoOptimizer<'a> {
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
-        let start_temp = self.input.n as f64 * self.queries.len() as f64 / 1e2;
-        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 1e5;
+        let start_temp = self.input.n as f64 * self.queries.len() as f64 / 1e2; // :param
+        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 1e5; // :param
 
         let mut iteration = 0;
 
