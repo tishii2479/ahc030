@@ -158,3 +158,29 @@ pub fn exit(interactor: &mut Interactor) {
     );
     std::process::exit(0);
 }
+
+pub fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
+    let mut delta = vec![]; // TODO: reserve
+    let p = 2.; // :param
+    for di in -delta_max_dist..=delta_max_dist {
+        for dj in -delta_max_dist..=delta_max_dist {
+            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
+            let cnt = ((delta_max_dist as f64 * 2.).powf(p) / dist.powf(p))
+                .round()
+                .max(1.) as usize;
+            delta.extend(vec![(di, dj); cnt]);
+        }
+    }
+    delta
+}
+
+pub fn add_delta(
+    from_pos: (usize, usize),
+    mino_range: (usize, usize),
+    delta: (i64, i64),
+) -> (usize, usize) {
+    // TODO: 外れているならNoneを返す、現状は少し偏っている
+    let ni = (from_pos.0 as i64 + delta.0).clamp(0, mino_range.0 as i64 - 1) as usize;
+    let nj = (from_pos.1 as i64 + delta.1).clamp(0, mino_range.1 as i64 - 1) as usize;
+    (ni, nj)
+}
