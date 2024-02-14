@@ -35,22 +35,23 @@ const D: [(usize, usize); 8] = [
     (1, !0),
 ];
 
-fn create_weighted_delta_using_neighbors(delta_max_dist: i64) -> Vec<(i64, i64)> {
+fn create_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
     let mut delta = vec![];
     let p = 2.; // :param
-    for di in -delta_max_dist..=delta_max_dist {
-        for dj in -delta_max_dist..=delta_max_dist {
-            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
-            let cnt = ((delta_max_dist as f64 * 2.).powf(p) / dist.powf(p))
-                .round()
-                .max(1.) as usize;
-            delta.extend(vec![(di, dj); cnt]);
-        }
+    for (di, dj) in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
+        let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
+        let cnt = ((max_dist as f64 * 2.).powf(p) / dist.powf(p))
+            .round()
+            .max(1.) as usize;
+        delta.extend(vec![(di, dj); cnt]);
     }
     delta
 }
 
-fn create_weighted_delta_using_duplication(input: &Input) -> Vec<Vec<Vec<(i64, i64)>>> {
+fn create_weighted_delta_using_duplication(
+    max_dist: i64,
+    input: &Input,
+) -> Vec<Vec<Vec<(i64, i64)>>> {
     let mut weighted_delta = vec![vec![vec![]; input.m]; input.m];
     for mino_i in 0..input.m {
         for mino_j in 0..input.m {
@@ -58,7 +59,7 @@ fn create_weighted_delta_using_duplication(input: &Input) -> Vec<Vec<Vec<(i64, i
                 continue;
             }
             let set: HashSet<&(usize, usize)> = HashSet::from_iter(input.minos[mino_j].iter());
-            for d in iproduct!(-2..=2, -2..=2) {
+            for d in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
                 let mut duplicate_count = 0;
                 for &p in &input.minos[mino_i] {
                     let (i, j) = (p.0 as i64 + d.0, p.1 as i64 + d.1);
@@ -138,7 +139,6 @@ pub fn investigate(
 
 pub struct MinoOptimizer<'a> {
     mino_range: Vec<(usize, usize)>,
-    weighted_delta: Vec<Vec<Vec<(i64, i64)>>>,
     query_cache: Vec<f64>,
     query_indices: Vec<Vec<Vec<usize>>>,
     mino_pos: Vec<(usize, usize)>,
@@ -183,7 +183,6 @@ impl<'a> MinoOptimizer<'a> {
 
         MinoOptimizer {
             mino_range,
-            weighted_delta: create_weighted_delta_using_duplication(&input),
             query_cache,
             query_indices,
             mino_pos,
@@ -200,7 +199,9 @@ impl<'a> MinoOptimizer<'a> {
         is_anneal: bool,
     ) -> Vec<(f64, Vec<(usize, usize)>)> {
         let delta_max_dist = 2; // :param
-        let weighted_delta = create_weighted_delta_using_neighbors(delta_max_dist);
+        let weighted_delta_using_duplication =
+            create_weighted_delta_using_duplication(delta_max_dist, &self.input);
+        let weighted_delta_using_neighbors = create_weighted_delta_using_neighbors(delta_max_dist);
 
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
@@ -222,15 +223,30 @@ impl<'a> MinoOptimizer<'a> {
 
             let p = rnd::nextf();
             let score_diff = if p < 0.2 {
-                self.action_slide(1, &mut mino_is, &mut next_mino_poss, &weighted_delta)
+                self.action_slide(
+                    1,
+                    &mut mino_is,
+                    &mut next_mino_poss,
+                    &weighted_delta_using_neighbors,
+                )
             // } else if p < 0.2 {
             //     self.action_slide(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
             } else if p < 0.3 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
             } else if p < 0.9 {
-                self.action_swap(2, &mut mino_is, &mut next_mino_poss)
+                self.action_swap(
+                    2,
+                    &mut mino_is,
+                    &mut next_mino_poss,
+                    &weighted_delta_using_duplication,
+                )
             } else {
-                self.action_swap(3, &mut mino_is, &mut next_mino_poss)
+                self.action_swap(
+                    3,
+                    &mut mino_is,
+                    &mut next_mino_poss,
+                    &weighted_delta_using_duplication,
+                )
             };
 
             let adopt = if is_anneal {
@@ -278,6 +294,7 @@ impl<'a> MinoOptimizer<'a> {
         r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
+        weighted_delta: &Vec<Vec<Vec<(i64, i64)>>>,
     ) -> f64 {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
@@ -291,7 +308,7 @@ impl<'a> MinoOptimizer<'a> {
         }
 
         for i in 0..r {
-            let weighted_delta = &self.weighted_delta[mino_is[i]][mino_is[(i + 1) % r]];
+            let weighted_delta = &weighted_delta[mino_is[i]][mino_is[(i + 1) % r]];
             let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[(i + 1) % r]],
