@@ -35,7 +35,7 @@ const D: [(usize, usize); 8] = [
 ];
 
 fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
-    let mut delta = vec![]; // TODO: reserve
+    let mut delta = vec![];
     let p = 2.; // :param
     for di in -delta_max_dist..=delta_max_dist {
         for dj in -delta_max_dist..=delta_max_dist {
@@ -51,9 +51,9 @@ fn create_weighted_delta(delta_max_dist: i64) -> Vec<(i64, i64)> {
 
 fn adjusted_q_len(x: usize) -> f64 {
     if x == 1 {
-        1e-1
+        1e-1 // :param
     } else {
-        x as f64
+        (x as f64).sqrt() // :param
     }
 }
 
@@ -173,6 +173,7 @@ impl<'a> MinoOptimizer<'a> {
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
+        // TODO: epsによっても変更する
         let start_temp = self.input.n as f64 * self.queries.len() as f64 / 1e3; // :param
         let end_temp = self.input.n as f64 * self.queries.len() as f64 / 1e5; // :param
 
@@ -456,14 +457,14 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
                 continue;
             }
 
-            vis_v(&v, answer);
+            // vis_v(&v, answer);
             eprintln!("mino_loss:   {:10.5}", mino_loss);
             eprintln!("error_count: {}", error_count(&v, answer));
             eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
             eprintln!("total_cost:  {:.5}", interactor.total_cost);
 
             if interactor.output_answer(&s) {
-                vis_queries(&queries, &input);
+                // vis_queries(&queries, &input);
                 exit(interactor);
             }
 

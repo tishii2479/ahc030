@@ -60,6 +60,7 @@ pub mod time {
     }
 }
 
+#[allow(unused)]
 pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, f64)>, input: &Input) {
     let mut c = vec![vec![0; input.n]; input.n];
     for (s, _) in queries.iter() {
