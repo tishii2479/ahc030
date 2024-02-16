@@ -518,6 +518,18 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             eprintln!("total_cost:  {:.5}", interactor.total_cost);
 
             if interactor.output_answer(&s) {
+                eprintln!("{:10.5}", mino_loss);
+                let mut seen = vec![*mino_loss];
+                for (loss, _mino_pos) in cands.iter() {
+                    if seen.len() >= 10 {
+                        break;
+                    }
+                    if seen.iter().any(|x| (loss - x).abs() < 1e-4) {
+                        continue;
+                    }
+                    eprintln!("{:10.5}", loss);
+                    seen.push(*loss);
+                }
                 exit(interactor);
             }
 
