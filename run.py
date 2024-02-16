@@ -243,6 +243,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--list-solver", action="store_true")
     parser.add_argument("-i", "--ignore", action="store_true")
     parser.add_argument("-n", "--case_num", type=int, default=100)
+    parser.add_argument("--start-case", type=int, default=0)
     parser.add_argument("-v", "--verbose", type=int, default=10)
     parser.add_argument(
         "-s",
@@ -286,7 +287,7 @@ if __name__ == "__main__":
         )
         cases = [
             (f"{args.data_dir}/in/{seed:04}.txt", f"{args.data_dir}/out/{seed:04}.txt")
-            for seed in range(args.case_num)
+            for seed in range(args.start_case, args.start_case + args.case_num)
         ]
         runner.run(cases=cases, ignore=args.ignore, verbose=args.verbose)
         runner.evaluate_relative_score(

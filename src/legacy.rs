@@ -202,3 +202,65 @@ pub fn investigate(
 
     queries
 }
+
+fn first_investigate(
+    k: usize,
+    r: usize,
+    interactor: &mut Interactor,
+    input: &Input,
+) -> Vec<(Vec<(usize, usize)>, f64)> {
+    let mut queries = Vec::with_capacity((input.n - r + 1).pow(2));
+
+    let m = 2;
+    for _ in 0..input.n {
+        let mut s = vec![];
+        let mut v = vec![];
+        for _ in 0..m {
+            let mut i;
+            loop {
+                i = rnd::gen_range(0, input.n);
+                if !v.contains(&i) {
+                    v.push(i);
+                    break;
+                }
+            }
+            for j in 0..input.n {
+                s.push((i, j));
+            }
+        }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = if k > 1 {
+            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
+        } else {
+            obs_x
+        };
+        queries.push((s, obs_x));
+    }
+
+    for _ in 0..input.n {
+        let mut s = vec![];
+        let mut v = vec![];
+        for _ in 0..m {
+            let mut j;
+            loop {
+                j = rnd::gen_range(0, input.n);
+                if !v.contains(&j) {
+                    v.push(j);
+                    break;
+                }
+            }
+            for i in 0..input.n {
+                s.push((i, j));
+            }
+        }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = if k > 1 {
+            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
+        } else {
+            obs_x
+        };
+        queries.push((s, obs_x));
+    }
+
+    queries
+}

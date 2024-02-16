@@ -371,24 +371,27 @@ fn investigate(
 #[allow(unused)]
 fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let query_limit = input.n.pow(2) * 2;
-    let k = input.n * 2; // :param
+    let query_size = get_query_size(input); // :param
 
     let mut queries = vec![];
     let mut fixed = vec![vec![false; input.n]; input.n];
     let mut checked_s = HashSet::new();
 
-    let mut query_count = 10;
+    let mut query_count = 6;
 
-    while query_count < query_limit {
-        query_count += 10;
+    while interactor.query_count < query_limit {
+        let next_query_count = ((query_count as f64 * 0.1).ceil() as usize).max(2);
         let mut _queries = investigate(
-            k,
-            query_count.min(query_limit - 1),
+            query_size,
+            next_query_count
+                .min(query_limit - interactor.query_count - 1)
+                .max(1),
             &vec![],
             &mut fixed,
             interactor,
             input,
         );
+        query_count += next_query_count;
         queries.extend(_queries);
 
         // ミノの配置を最適化
@@ -448,10 +451,14 @@ fn get_query_count(input: &Input) -> usize {
     pred.round() as usize
 }
 
+fn get_query_size(input: &Input) -> usize {
+    (input.n as f64 * (5. - input.eps * 20.)).round() as usize
+}
+
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
-    let k = (input.n as f64 * (5. - input.eps * 20.)).round() as usize; // :param
+    let query_size = get_query_size(input); // :param
 
     let mut queries = vec![];
     let mut fixed = vec![vec![false; input.n]; input.n];
@@ -465,8 +472,8 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
         .collect();
-    let step_sum: f64 = steps.iter().map(|x| x.sqrt()).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|x| x.sqrt() / step_sum).collect();
+    let step_sum: f64 = steps.iter().map(|x| x).sum();
+    let step_ratio: Vec<f64> = steps.iter().map(|x| x / step_sum).collect();
 
     for i in 1..steps.len() {
         let query_count = if i < steps.len() - 1 {
@@ -475,7 +482,14 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         } else {
             (query_limit as i64 - interactor.query_count as i64 - 5).max(0) as usize
         };
-        let mut _queries = investigate(k, query_count, &v_history, &mut fixed, interactor, input);
+        let mut _queries = investigate(
+            query_size,
+            query_count,
+            &v_history,
+            &mut fixed,
+            interactor,
+            input,
+        );
         queries.extend(_queries);
 
         // ミノの配置を最適化
@@ -500,14 +514,12 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
                 continue;
             }
 
-            // vis_v(&v, answer);
             eprintln!("mino_loss:   {:10.5}", mino_loss);
             eprintln!("error_count: {}", error_count(&v, answer));
             eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
             eprintln!("total_cost:  {:.5}", interactor.total_cost);
 
             if interactor.output_answer(&s) {
-                // vis_queries(&queries, &input);
                 exit(interactor);
             }
 
@@ -528,7 +540,8 @@ fn main() {
         None
     };
 
-    solve(&mut interactor, &input, &answer);
+    // solve(&mut interactor, &input, &answer);
+    solve_data_collection(&mut interactor, &input, &answer);
 
     // クエリを最後まで消費する
     loop {
