@@ -84,60 +84,7 @@ fn adjusted_q_len(x: usize) -> f64 {
     }
 }
 
-pub fn investigate(
-    k: usize,
-    query_count: usize,
-    v_history: &Vec<Vec<Vec<usize>>>,
-    fixed: &mut Vec<Vec<bool>>,
-    interactor: &mut Interactor,
-    input: &Input,
-) -> Vec<(Vec<(usize, usize)>, f64)> {
-    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良さそう
-    let mut queries = Vec::with_capacity(query_count);
-
-    let mut high_prob_v = vec![];
-    if v_history.len() > 0 {
-        for i in 0..input.n {
-            for j in 0..input.n {
-                for (di, dj) in D {
-                    let (ni, nj) = (i + di, j + dj);
-                    if ni < input.n && nj < input.n && v_history[v_history.len() - 1][ni][nj] > 0 {
-                        high_prob_v.push((i, j));
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    for _ in 0..query_count {
-        let mut s = vec![];
-        while s.len() < k {
-            let a = if high_prob_v.len() > 0 && rnd::nextf() < USE_HIGH_PROB {
-                high_prob_v[rnd::gen_range(0, high_prob_v.len())]
-            } else {
-                (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n))
-            };
-            if !s.contains(&a) && !fixed[a.0][a.1] {
-                s.push(a);
-            }
-        }
-        let obs_x = interactor.output_query(&s) as f64;
-        let obs_x = if k > 1 {
-            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
-        } else {
-            obs_x
-        };
-        if s.len() == 1 {
-            fixed[s[0].0][s[0].1] = true;
-        }
-        queries.push((s, obs_x));
-    }
-
-    queries
-}
-
-pub struct MinoOptimizer<'a> {
+struct MinoOptimizer<'a> {
     mino_range: Vec<(usize, usize)>,
     query_cache: Vec<f64>,
     query_indices: Vec<Vec<Vec<usize>>>,
@@ -149,7 +96,7 @@ pub struct MinoOptimizer<'a> {
 }
 
 impl<'a> MinoOptimizer<'a> {
-    pub fn new(
+    fn new(
         initial_mino_pos: Option<Vec<(usize, usize)>>,
         queries: &'a Vec<(Vec<(usize, usize)>, f64)>,
         input: &'a Input,
@@ -193,11 +140,7 @@ impl<'a> MinoOptimizer<'a> {
         }
     }
 
-    pub fn optimize(
-        &mut self,
-        time_limit: f64,
-        is_anneal: bool,
-    ) -> Vec<(f64, Vec<(usize, usize)>)> {
+    fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
         let delta_max_dist = 2; // :param
         let delta_duplicates = create_weighted_delta_using_duplication(delta_max_dist, &self.input);
         let delta_neighbors = create_weighted_delta_using_neighbors(delta_max_dist);
@@ -271,7 +214,7 @@ impl<'a> MinoOptimizer<'a> {
         cands
     }
 
-    pub fn action_swap(
+    fn action_swap(
         &mut self,
         r: usize,
         mino_is: &mut Vec<usize>,
@@ -372,8 +315,61 @@ impl<'a> MinoOptimizer<'a> {
     }
 }
 
+fn investigate(
+    k: usize,
+    query_count: usize,
+    v_history: &Vec<Vec<Vec<usize>>>,
+    fixed: &mut Vec<Vec<bool>>,
+    interactor: &mut Interactor,
+    input: &Input,
+) -> Vec<(Vec<(usize, usize)>, f64)> {
+    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良さそう
+    let mut queries = Vec::with_capacity(query_count);
+
+    let mut high_prob_v = vec![];
+    if v_history.len() > 0 {
+        for i in 0..input.n {
+            for j in 0..input.n {
+                for (di, dj) in D {
+                    let (ni, nj) = (i + di, j + dj);
+                    if ni < input.n && nj < input.n && v_history[v_history.len() - 1][ni][nj] > 0 {
+                        high_prob_v.push((i, j));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for _ in 0..query_count {
+        let mut s = vec![];
+        while s.len() < k {
+            let a = if high_prob_v.len() > 0 && rnd::nextf() < USE_HIGH_PROB {
+                high_prob_v[rnd::gen_range(0, high_prob_v.len())]
+            } else {
+                (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n))
+            };
+            if !s.contains(&a) && !fixed[a.0][a.1] {
+                s.push(a);
+            }
+        }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = if k > 1 {
+            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
+        } else {
+            obs_x
+        };
+        if s.len() == 1 {
+            fixed[s[0].0][s[0].1] = true;
+        }
+        queries.push((s, obs_x));
+    }
+
+    queries
+}
+
 #[allow(unused)]
-pub fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let query_limit = input.n.pow(2) * 2;
     let k = input.n * 2; // :param
 
@@ -425,7 +421,7 @@ pub fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer:
 }
 
 #[allow(unused)]
-pub fn solve_greedy(interactor: &mut Interactor, input: &Input) {
+fn solve_greedy(interactor: &mut Interactor, input: &Input) {
     let mut s = vec![];
     for i in 0..input.n {
         for j in 0..input.n {
