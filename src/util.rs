@@ -61,19 +61,51 @@ pub mod time {
 }
 
 #[allow(unused)]
-pub fn vis_queries(queries: &Vec<(Vec<(usize, usize)>, f64)>, input: &Input) {
+fn vis_prob(x: &Vec<Vec<f64>>, answer: &Option<Answer>) {
+    let has_answer = answer.is_some();
+    for i in 0..x.len() {
+        for j in 0..x[i].len() {
+            let color_value = (x[i][j] * 256.).clamp(0., 255.) as usize;
+            let color = format!("#FF{:x}{:x}", 255 - color_value, 255 - color_value);
+            println!("#c {} {} {}", i, j, color);
+            eprint!(
+                "\x1b[38;2;{};{};{}m",
+                255,
+                255 - color_value,
+                255 - color_value
+            );
+            if has_answer && answer.as_ref().unwrap().v[i][j] > 0 {
+                eprint!("\x1b[48;2;210;100;100m");
+            }
+            eprint!("{:5.3}", x[i][j]);
+            eprint!("\x1b[m ");
+        }
+        eprintln!();
+    }
+}
+
+#[allow(unused)]
+pub fn vis_queries(
+    queries: &Vec<(Vec<(usize, usize)>, f64)>,
+    input: &Input,
+    answer: &Option<Answer>,
+) {
     let mut c = vec![vec![0; input.n]; input.n];
-    for (s, _) in queries.iter() {
+    let mut x = vec![vec![0.; input.n]; input.n];
+    for (s, _x) in queries.iter() {
         for &(i, j) in s {
             c[i][j] += 1;
+            x[i][j] += _x / s.len() as f64;
         }
     }
     for i in 0..input.n {
         for j in 0..input.n {
+            x[i][j] /= c[i][j] as f64;
             eprint!("{:4}", c[i][j]);
         }
         eprintln!();
     }
+    vis_prob(&x, answer);
 }
 
 #[allow(unused)]

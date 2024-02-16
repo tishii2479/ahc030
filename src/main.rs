@@ -199,9 +199,8 @@ impl<'a> MinoOptimizer<'a> {
         is_anneal: bool,
     ) -> Vec<(f64, Vec<(usize, usize)>)> {
         let delta_max_dist = 2; // :param
-        let weighted_delta_using_duplication =
-            create_weighted_delta_using_duplication(delta_max_dist, &self.input);
-        let weighted_delta_using_neighbors = create_weighted_delta_using_neighbors(delta_max_dist);
+        let delta_duplicates = create_weighted_delta_using_duplication(delta_max_dist, &self.input);
+        let delta_neighbors = create_weighted_delta_using_neighbors(delta_max_dist);
 
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
@@ -223,30 +222,13 @@ impl<'a> MinoOptimizer<'a> {
 
             let p = rnd::nextf();
             let score_diff = if p < 0.2 {
-                self.action_slide(
-                    1,
-                    &mut mino_is,
-                    &mut next_mino_poss,
-                    &weighted_delta_using_neighbors,
-                )
-            // } else if p < 0.2 {
-            //     self.action_slide(2, &mut mino_is, &mut next_mino_poss, &weighted_delta)
+                self.action_slide(1, &mut mino_is, &mut next_mino_poss, &delta_neighbors)
             } else if p < 0.3 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
             } else if p < 0.9 {
-                self.action_swap(
-                    2,
-                    &mut mino_is,
-                    &mut next_mino_poss,
-                    &weighted_delta_using_duplication,
-                )
+                self.action_swap(2, &mut mino_is, &mut next_mino_poss, &delta_duplicates)
             } else {
-                self.action_swap(
-                    3,
-                    &mut mino_is,
-                    &mut next_mino_poss,
-                    &weighted_delta_using_duplication,
-                )
+                self.action_swap(3, &mut mino_is, &mut next_mino_poss, &delta_duplicates)
             };
 
             let adopt = if is_anneal {
@@ -467,13 +449,13 @@ fn get_query_count(input: &Input) -> usize {
     let pred = query_count_linear_regression(n, m, eps, dense);
     let pred = pred * query_limit as f64;
 
-    pred.round().round() as usize
+    pred.round() as usize
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
-    let k = (input.n as f64 * (3. - input.eps * 10.)).round() as usize; // :param
+    let k = (input.n as f64 * (5. - input.eps * 20.)).round() as usize; // :param
 
     let mut queries = vec![];
     let mut fixed = vec![vec![false; input.n]; input.n];
@@ -493,7 +475,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     for i in 1..steps.len() {
         let query_count = if i < steps.len() - 1 {
             (((steps[i] - steps[i - 1]) * base_query_count as f64).round() as usize)
-                .clamp(0, query_limit - interactor.query_count - 5)
+                .clamp(0, query_limit - interactor.query_count - i)
         } else {
             (query_limit as i64 - interactor.query_count as i64 - 5).max(0) as usize
         };
