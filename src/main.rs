@@ -3,14 +3,11 @@ mod interactor;
 mod param;
 mod util;
 
-use std::collections::HashSet;
-
-use itertools::iproduct;
-
 use crate::def::*;
 use crate::interactor::*;
 use crate::param::*;
 use crate::util::*;
+use std::collections::HashSet;
 
 #[macro_export]
 #[cfg(not(feature = "local"))]
@@ -35,60 +32,14 @@ const D: [(usize, usize); 8] = [
     (1, !0),
 ];
 
-fn create_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
-    let mut delta = vec![];
-    let p = 2.; // :param
-    for (di, dj) in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
-        let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
-        let cnt = ((max_dist as f64 * 2.).powf(p) / dist.powf(p))
-            .round()
-            .max(1.) as usize;
-        delta.extend(vec![(di, dj); cnt]);
-    }
-    delta
-}
-
-fn create_weighted_delta_using_duplication(
-    max_dist: i64,
-    input: &Input,
-) -> Vec<Vec<Vec<(i64, i64)>>> {
-    let mut weighted_delta = vec![vec![vec![]; input.m]; input.m];
-    for mino_i in 0..input.m {
-        for mino_j in 0..input.m {
-            if mino_i == mino_j {
-                continue;
-            }
-            let set: HashSet<&(usize, usize)> = HashSet::from_iter(input.minos[mino_j].iter());
-            for d in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
-                let mut duplicate_count = 0;
-                for &p in &input.minos[mino_i] {
-                    let (i, j) = (p.0 as i64 + d.0, p.1 as i64 + d.1);
-                    let v = (i as usize, j as usize);
-                    if set.contains(&v) {
-                        duplicate_count += 1;
-                    }
-                }
-                weighted_delta[mino_i][mino_j].extend(vec![d; duplicate_count.max(1)]);
-            }
-        }
-    }
-
-    weighted_delta
-}
-
-fn calc_error(y: f64, y_hat: f64, s_len: usize) -> f64 {
-    fn adjusted_q_len(x: usize) -> f64 {
-        if x == 1 {
-            1e-1 // :param
-        } else {
-            x as f64 // :param
-        }
-    }
-    (y - y_hat).powf(2.) / adjusted_q_len(s_len)
+struct InputUtility {
+    delta_neighbors: Vec<(i64, i64)>,
+    delta_duplicates: Vec<Vec<Vec<(i64, i64)>>>,
+    mino_range: Vec<(usize, usize)>,
 }
 
 struct MinoOptimizer<'a> {
-    mino_range: Vec<(usize, usize)>,
+    input_util: InputUtility,
     query_cache: Vec<f64>,
     query_indices: Vec<Vec<Vec<usize>>>,
     mino_pos: Vec<(usize, usize)>,
@@ -104,15 +55,20 @@ impl<'a> MinoOptimizer<'a> {
         queries: &'a Vec<(Vec<(usize, usize)>, f64)>,
         input: &'a Input,
     ) -> MinoOptimizer<'a> {
-        let mino_range = get_mino_range(&input);
+        let delta_max_dist = 2; // :param
+        let input_util = InputUtility {
+            delta_duplicates: get_weighted_delta_using_duplication(delta_max_dist, &input),
+            delta_neighbors: get_weighted_delta_using_neighbors(delta_max_dist),
+            mino_range: get_mino_range(&input),
+        };
         let mino_pos = if let Some(initial_mino_pos) = initial_mino_pos {
             initial_mino_pos
         } else {
             let mut mino_pos = Vec::with_capacity(input.m);
             for k in 0..input.m {
                 mino_pos.push((
-                    rnd::gen_range(0, mino_range[k].0),
-                    rnd::gen_range(0, mino_range[k].1),
+                    rnd::gen_range(0, input_util.mino_range[k].0),
+                    rnd::gen_range(0, input_util.mino_range[k].1),
                 ));
             }
             mino_pos
@@ -132,7 +88,7 @@ impl<'a> MinoOptimizer<'a> {
         }
 
         MinoOptimizer {
-            mino_range,
+            input_util,
             query_cache,
             query_indices,
             mino_pos,
@@ -144,10 +100,6 @@ impl<'a> MinoOptimizer<'a> {
     }
 
     fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
-        let delta_max_dist = 2; // :param
-        let delta_duplicates = create_weighted_delta_using_duplication(delta_max_dist, &self.input);
-        let delta_neighbors = create_weighted_delta_using_neighbors(delta_max_dist);
-
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
@@ -168,24 +120,14 @@ impl<'a> MinoOptimizer<'a> {
             next_mino_poss.clear();
 
             let p = rnd::nextf();
-            // if p < 0.0001 && iteration > 10000 {
-            //     for _ in 0..2 {
-            //         let m = rnd::gen_range(0, self.input.m);
-            //         self.mino_pos[m] = (
-            //             rnd::gen_range(0, self.mino_range[m].0),
-            //             rnd::gen_range(0, self.mino_range[m].1),
-            //         );
-            //     }
-            //     continue;
-            // }
             let score_diff = if p < 0.2 {
-                self.action_slide(1, &mut mino_is, &mut next_mino_poss, &delta_neighbors)
+                self.action_slide(1, &mut mino_is, &mut next_mino_poss)
             } else if p < 0.3 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
             } else if p < 0.9 {
-                self.action_swap(2, &mut mino_is, &mut next_mino_poss, &delta_duplicates)
+                self.action_swap(2, &mut mino_is, &mut next_mino_poss)
             } else {
-                self.action_swap(3, &mut mino_is, &mut next_mino_poss, &delta_duplicates)
+                self.action_swap(3, &mut mino_is, &mut next_mino_poss)
             };
 
             let adopt = if is_anneal {
@@ -213,7 +155,6 @@ impl<'a> MinoOptimizer<'a> {
             iteration += 1;
 
             if (iteration + 1) % 100 == 0 || self.score < best_score {
-                // eprintln!("[{:.4}] {:15.5}", time::elapsed_seconds(), self.score);
                 score_log.push(self.score);
             }
             best_score = best_score.min(self.score);
@@ -235,7 +176,6 @@ impl<'a> MinoOptimizer<'a> {
         r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-        weighted_delta: &Vec<Vec<Vec<(i64, i64)>>>,
     ) -> f64 {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
@@ -249,11 +189,12 @@ impl<'a> MinoOptimizer<'a> {
         }
 
         for i in 0..r {
-            let weighted_delta = &weighted_delta[mino_is[i]][mino_is[(i + 1) % r]];
+            let weighted_delta =
+                &self.input_util.delta_duplicates[mino_is[i]][mino_is[(i + 1) % r]];
             let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[(i + 1) % r]],
-                self.mino_range[mino_is[i]],
+                self.input_util.mino_range[mino_is[i]],
                 delta,
             );
             score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
@@ -268,7 +209,6 @@ impl<'a> MinoOptimizer<'a> {
         r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-        weighted_delta: &Vec<(i64, i64)>,
     ) -> f64 {
         let r = r.min(self.input.m);
         let mut score_diff = 0.;
@@ -280,11 +220,12 @@ impl<'a> MinoOptimizer<'a> {
             mino_is.push(mino_i);
             score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
-        let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
+        let delta = self.input_util.delta_neighbors
+            [rnd::gen_range(0, self.input_util.delta_neighbors.len())];
         for i in 0..r {
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[i]],
-                self.mino_range[mino_is[i]],
+                self.input_util.mino_range[mino_is[i]],
                 delta,
             );
             score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
@@ -301,8 +242,8 @@ impl<'a> MinoOptimizer<'a> {
         let mino_i = rnd::gen_range(0, self.input.m);
         let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         let next_mino_pos = (
-            rnd::gen_range(0, self.mino_range[mino_i].0),
-            rnd::gen_range(0, self.mino_range[mino_i].1),
+            rnd::gen_range(0, self.input_util.mino_range[mino_i].0),
+            rnd::gen_range(0, self.input_util.mino_range[mino_i].1),
         );
         score_diff += self.toggle_mino(mino_i, next_mino_pos, true);
         mino_is.push(mino_i);
@@ -651,13 +592,15 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let base_query_count = get_query_count(input).clamp(10, query_limit);
     eprintln!("base_query_count = {}", base_query_count);
 
-    let steps = vec![0.0, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // TODO: base_query_countごとに調整する
-    let steps: Vec<f64> = steps
+    let steps = vec![0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // TODO: base_query_countごとに調整する
+    let steps: Vec<usize> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
+        .map(|x| (x * base_query_count as f64).round() as usize)
         .collect();
-    let step_sum: f64 = steps.iter().map(|x| x).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|x| x / step_sum).collect();
+    let step_sum: usize = steps.iter().map(|&x| x as usize).sum();
+    let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect();
+    let mut next_step = 0;
 
     fn output_answer(
         out_cnt: usize,
@@ -689,64 +632,71 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         }
     }
 
-    for i in 1..steps.len() {
-        let step_size = steps[i] - steps[i - 1];
-        let is_final = i == steps.len() - 1;
-        let query_count = ((step_size * base_query_count as f64).round() as usize)
-            .clamp(0, query_limit - interactor.query_count - i);
+    loop {
+        if next_step >= steps.len() {
+            break;
+        }
 
         let prob_v = calc_high_prob(top_k, &cands, input);
 
         // 調査
-        for _ in 0..query_count {
-            if interactor.query_count >= query_limit - 1 {
-                break;
+        let mut s = vec![];
+        while s.len() < query_size {
+            let a = prob_v[rnd::gen_range(0, prob_v.len())];
+            if !s.contains(&a) && !fixed[a.0][a.1] {
+                s.push(a);
             }
-            let mut s = vec![];
-            while s.len() < query_size {
-                let a = prob_v[rnd::gen_range(0, prob_v.len())];
-                if !s.contains(&a) && !fixed[a.0][a.1] {
-                    s.push(a);
-                }
-            }
-            let obs_x = interactor.output_query(&s) as f64;
-            let obs_x = ((obs_x - query_size as f64 * input.eps) / (1. - 2. * input.eps)).max(0.);
-
-            for (err, v) in cands.iter_mut() {
-                let mut v_sum = 0.;
-                for &(i, j) in s.iter() {
-                    v_sum += v[i][j] as f64;
-                }
-                *err += calc_error(v_sum, obs_x, s.len());
-            }
-            queries.push((s, obs_x));
         }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = ((obs_x - query_size as f64 * input.eps) / (1. - 2. * input.eps)).max(0.);
 
-        // 最適化
-        let optimize_time_limit = if is_final {
-            time_limit - time::elapsed_seconds()
-        } else {
-            time_limit * step_ratio[i]
-        };
-
-        let mut optimizer = MinoOptimizer::new(None, &queries, &input);
-        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
-        new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        // 候補の追加
-        for (err, mino_pos) in new_cands.into_iter() {
-            if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
-                break;
+        for (err, v) in cands.iter_mut() {
+            let mut v_sum = 0.;
+            for &(i, j) in s.iter() {
+                v_sum += v[i][j] as f64;
             }
-            let v = get_v(&mino_pos, &input.minos, input.n);
-            if answer_set.contains(&v) {
-                continue;
-            }
-            answer_set.insert(v.clone());
-            cands.push((err, v));
+            *err += calc_error(v_sum, obs_x, s.len());
         }
+        queries.push((s, obs_x));
 
-        output_answer(i, top_k, &mut cands, interactor, &mut checked_s, answer);
+        if interactor.query_count >= steps[next_step] {
+            // 最適化
+            let optimize_time_limit = if next_step == steps.len() {
+                time_limit - time::elapsed_seconds()
+            } else {
+                time_limit * step_ratio[next_step]
+            };
+
+            let mut optimizer = MinoOptimizer::new(None, &queries, &input);
+            let mut new_cands =
+                optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
+            new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+            // 候補の追加
+            for (err, mino_pos) in new_cands.into_iter() {
+                if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
+                    break;
+                }
+                let v = get_v(&mino_pos, &input.minos, input.n);
+                if answer_set.contains(&v) {
+                    continue;
+                }
+                answer_set.insert(v.clone());
+                cands.push((err, v));
+            }
+
+            next_step += 1;
+
+            // 答える
+            output_answer(
+                next_step,
+                top_k,
+                &mut cands,
+                interactor,
+                &mut checked_s,
+                answer,
+            );
+        }
     }
 
     // 最後まで出力する

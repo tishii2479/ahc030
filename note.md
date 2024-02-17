@@ -452,3 +452,4 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 - reannealingは試す価値あるか、、
 
 - query-sizeのチューニング
+- 高速化は結構効く
