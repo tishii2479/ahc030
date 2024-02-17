@@ -695,10 +695,10 @@ fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(us
     for i in 0..input.n {
         for j in 0..input.n {
             let cnt = (var[i][j] * alpha).round().max(1.) as usize;
-            eprint!("{:8.5} ", var[i][j]);
             prob_v.extend(vec![(i, j); cnt]);
+            // eprint!("{:8.5} ", var[i][j]);
         }
-        eprintln!();
+        // eprintln!();
     }
 
     prob_v
