@@ -448,3 +448,5 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 ```
 
 - 確定を使う
+- あまり伸びないでござる
+- reannealingは試す価値あるか、、

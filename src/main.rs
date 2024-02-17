@@ -588,78 +588,6 @@ fn get_query_size(input: &Input) -> usize {
     (input.n as f64 * (5. - input.eps * 20.)).round() as usize
 }
 
-fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
-    let time_limit = 2.8;
-    let query_limit = input.n.pow(2) * 2;
-    let query_size = get_query_size(input); // :param
-
-    let mut queries = vec![];
-    let mut fixed = vec![vec![false; input.n]; input.n];
-    let mut checked_s = HashSet::new();
-    let mut v_history = vec![];
-
-    let base_query_count = get_query_count(input).clamp(10, query_limit);
-    eprintln!("base_query_count = {}", base_query_count);
-
-    let steps: Vec<f64> = vec![0.0, 0.8, 1.0, 1.2, 2.0]
-        .into_iter()
-        .filter(|x| x * (base_query_count as f64) < query_limit as f64)
-        .collect(); // TODO: base_query_count、epsごとに調整する
-    let step_sum: f64 = steps.iter().map(|x| x).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|x| x / step_sum).collect();
-
-    for i in 1..steps.len() {
-        let is_final = i == steps.len() - 1;
-        let query_count = (((steps[i] - steps[i - 1]) * base_query_count as f64).round() as usize)
-            .clamp(0, query_limit - interactor.query_count - i);
-        let mut _queries = investigate(
-            query_size,
-            query_count,
-            &v_history,
-            &mut fixed,
-            interactor,
-            input,
-        );
-        queries.extend(_queries);
-
-        // ミノの配置を最適化
-        let optimize_time_limit = if is_final {
-            time_limit - time::elapsed_seconds()
-        } else {
-            time_limit * step_ratio[i]
-        };
-        let mut optimizer = MinoOptimizer::new(None, &queries, &input);
-        let mut cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
-        cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let mut tested_count = 0;
-
-        for (mino_loss, mino_pos) in cands.iter() {
-            if tested_count >= i && !is_final {
-                break;
-            }
-            let v = get_v(&mino_pos, &input.minos, input.n);
-            let s = get_s(&v);
-            if checked_s.contains(&s) {
-                continue;
-            }
-
-            eprintln!("mino_loss:   {:10.5}", mino_loss);
-            eprintln!("error_count: {}", error_count(&v, answer));
-            eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
-            eprintln!("total_cost:  {:.5}", interactor.total_cost);
-
-            if interactor.output_answer(&s) {
-                exit(interactor);
-            }
-
-            checked_s.insert(s);
-            v_history.push(v);
-            tested_count += 1;
-        }
-    }
-}
-
 fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(usize, usize)> {
     let mut mean = vec![vec![0.; input.n]; input.n];
     let top_k = 100.min(cands.len());
@@ -704,7 +632,7 @@ fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(us
     prob_v
 }
 
-fn solve2(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
     let query_size = get_query_size(input); // :param
@@ -833,7 +761,7 @@ fn main() {
         None
     };
 
-    solve2(&mut interactor, &input, &answer);
+    solve(&mut interactor, &input, &answer);
 
     // クエリを最後まで消費する
     loop {
