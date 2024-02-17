@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Input {
     pub n: usize,
     pub m: usize,

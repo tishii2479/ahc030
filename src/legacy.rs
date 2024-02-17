@@ -264,3 +264,244 @@ fn first_investigate(
 
     queries
 }
+
+#[allow(unused)]
+fn solve_answer_contains(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+    let query_limit = input.n.pow(2) * 2;
+    let query_size = get_query_size(input); // :param
+
+    let mut queries = vec![];
+    let mut fixed = vec![vec![false; input.n]; input.n];
+    let mut v_history = vec![];
+
+    let base_query_count = get_query_count(input).clamp(10, query_limit);
+    eprintln!("base_query_count = {}", base_query_count);
+
+    let mut _queries = investigate(
+        query_size,
+        (base_query_count / 4)
+            .min(query_limit - interactor.query_count - 1)
+            .max(1),
+        &vec![],
+        &mut fixed,
+        interactor,
+        input,
+    );
+    queries.extend(_queries);
+
+    let mut optimizer = MinoOptimizer::new(None, &queries, &input);
+    let mut cands = optimizer.optimize(time::elapsed_seconds() + 1.0, true);
+    cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let (_, mino_pos) = &cands[0];
+    let v = get_v(&mino_pos, &input.minos, input.n);
+    v_history.push(v);
+
+    let mut _queries = investigate(
+        query_size,
+        (base_query_count / 2)
+            .min(query_limit - interactor.query_count - 1)
+            .max(1),
+        &v_history,
+        &mut fixed,
+        interactor,
+        input,
+    );
+    queries.extend(_queries);
+
+    for _ in 0..1 {
+        let mut sampled_queries = &queries;
+        // let mut sampled_queries = vec![];
+        // for _ in 0..queries.len() / 2 {
+        //     sampled_queries.push(queries[rnd::gen_range(0, queries.len())].clone());
+        // }
+
+        let mut optimizer = MinoOptimizer::new(None, &sampled_queries, &input);
+        let mut cands = optimizer.optimize(time::elapsed_seconds() + 2.0, true);
+        cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        eprintln!(
+            "query_count: {}, cand sizes: {}",
+            interactor.query_count,
+            cands.len()
+        );
+
+        let mut checked_v = HashSet::new();
+        for (mino_loss, mino_pos) in cands.iter() {
+            let v = get_v(&mino_pos, &input.minos, input.n);
+            let mut s = get_s(&v);
+            s.sort();
+            if checked_v.contains(&v) {
+                continue;
+            }
+            if let Some(answer) = answer {
+                let mut ans_s = get_s(&answer.v);
+                ans_s.sort();
+                if ans_s == s {
+                    eprintln!("---------------- contained!!!!!! -----------------: ");
+                    eprintln!(
+                        "cand_i: {}, query_count: {}",
+                        checked_v.len(),
+                        interactor.query_count
+                    );
+                    eprintln!("answer_mino_loss: {:.5}", mino_loss);
+                }
+
+                if checked_v.len() == 0 {
+                    eprintln!("mino_loss: {:.5}", mino_loss);
+                    let mut cnt = 0;
+                    for i in 0..input.m {
+                        if mino_pos[i] != answer.mino_pos[i] {
+                            cnt += 1;
+                        }
+                    }
+                    eprintln!("miss_count: {}", cnt);
+                }
+            }
+
+            if error_count(&v, answer) == 0 || checked_v.len() <= 5 {
+                if interactor.output_answer(&s) {
+                    exit(interactor);
+                }
+            }
+
+            checked_v.insert(v);
+        }
+
+        if let Some(answer) = answer {
+            let v = &answer.v;
+            let mut score = 0.;
+            for (s, x) in optimizer.queries.iter() {
+                let mut v_sum = 0.;
+                for &(i, j) in s.iter() {
+                    v_sum += v[i][j] as f64;
+                }
+                score += calc_error(v_sum, *x, s.len());
+            }
+            eprintln!("ans_loss: {:.5}", score);
+        }
+        eprintln!("checked_v: {}", checked_v.len());
+    }
+}
+
+#[allow(unused)]
+fn solve_data_collection(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+    let query_limit = input.n.pow(2) * 2;
+    let query_size = get_query_size(input); // :param
+
+    let mut queries = vec![];
+    let mut fixed = vec![vec![false; input.n]; input.n];
+    let mut checked_s = HashSet::new();
+
+    let mut query_count = 6;
+
+    while interactor.query_count < query_limit {
+        let next_query_count = ((query_count as f64 * 0.1).ceil() as usize).max(2);
+        let mut _queries = investigate(
+            query_size,
+            next_query_count
+                .min(query_limit - interactor.query_count - 1)
+                .max(1),
+            &vec![],
+            &mut fixed,
+            interactor,
+            input,
+        );
+        query_count += next_query_count;
+        queries.extend(_queries);
+
+        // ミノの配置を最適化
+        let mut optimizer = MinoOptimizer::new(None, &queries, &input);
+        let mut cands = optimizer.optimize(time::elapsed_seconds() + 1.0, true);
+        cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        for (mino_loss, mino_pos) in cands.iter().take(5) {
+            let v = get_v(&mino_pos, &input.minos, input.n);
+            let s = get_s(&v);
+            if checked_s.contains(&s) {
+                continue;
+            }
+
+            // vis_v(&v, answer);
+            // eprint!("mino_loss:   {:10.5}", mino_loss);
+            // eprintln!(", error_count: {}", error_count(&v, answer));
+            // eprintln!("query_count: {} / {}", interactor.query_count, query_limit);
+            // eprintln!("total_cost:  {:.5}", interactor.total_cost);
+
+            if error_count(&v, answer) == 0 {
+                if interactor.output_answer(&s) {
+                    exit(interactor);
+                }
+            }
+
+            checked_s.insert(s);
+        }
+    }
+}
+
+#[allow(unused)]
+fn solve_greedy(interactor: &mut Interactor, input: &Input) {
+    let mut s = vec![];
+    for i in 0..input.n {
+        for j in 0..input.n {
+            let x = interactor.output_query(&vec![(i, j)]);
+            if x > 0 {
+                s.push((i, j));
+            }
+        }
+    }
+    assert!(interactor.output_answer(&s));
+    exit(interactor);
+}
+
+fn investigate(
+    k: usize,
+    query_count: usize,
+    v_history: &Vec<Vec<Vec<usize>>>,
+    fixed: &mut Vec<Vec<bool>>,
+    interactor: &mut Interactor,
+    input: &Input,
+) -> Vec<(Vec<(usize, usize)>, f64)> {
+    const USE_HIGH_PROB: f64 = 0.5; // :param // NOTE: 徐々に大きくした方が良さそう
+    let mut queries = Vec::with_capacity(query_count);
+
+    let mut high_prob_v = vec![];
+    if v_history.len() > 0 {
+        for i in 0..input.n {
+            for j in 0..input.n {
+                for (di, dj) in D {
+                    let (ni, nj) = (i + di, j + dj);
+                    if ni < input.n && nj < input.n && v_history[v_history.len() - 1][ni][nj] > 0 {
+                        high_prob_v.push((i, j));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    for _ in 0..query_count {
+        let mut s = vec![];
+        while s.len() < k {
+            let a = if high_prob_v.len() > 0 && rnd::nextf() < USE_HIGH_PROB {
+                high_prob_v[rnd::gen_range(0, high_prob_v.len())]
+            } else {
+                (rnd::gen_range(0, input.n), rnd::gen_range(0, input.n))
+            };
+            if !s.contains(&a) && !fixed[a.0][a.1] {
+                s.push(a);
+            }
+        }
+        let obs_x = interactor.output_query(&s) as f64;
+        let obs_x = if k > 1 {
+            ((obs_x - k as f64 * input.eps) / (1. - 2. * input.eps)).max(0.) // NOTE: 本当にあってる？
+        } else {
+            obs_x
+        };
+        if s.len() == 1 {
+            fixed[s[0].0][s[0].1] = true;
+        }
+        queries.push((s, obs_x));
+    }
+
+    queries
+}
