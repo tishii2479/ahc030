@@ -373,10 +373,11 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut cands: Vec<(f64, Vec<Vec<usize>>)> = vec![];
     let mut answer_set: HashSet<Vec<Vec<usize>>> = HashSet::new();
 
-    let base_query_count = get_query_count(input).clamp(10, query_limit);
+    let base_query_count = get_query_count(input).clamp(10, query_limit - 5);
     eprintln!("base_query_count = {}", base_query_count);
 
-    let steps = vec![0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // TODO: base_query_countごとに調整する
+    // TODO: base_query_countごとに調整する
+    let steps = vec![0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // :param
     let steps: Vec<usize> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
@@ -416,8 +417,9 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         queries.push((s, obs_x));
 
         if interactor.query_count >= steps[next_step] {
+            let is_final = next_step == steps.len() - 1;
             // 最適化
-            let optimize_time_limit = if next_step == steps.len() {
+            let optimize_time_limit = if is_final {
                 time_limit - time::elapsed_seconds()
             } else {
                 time_limit * step_ratio[next_step]
@@ -444,10 +446,11 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         }
 
         if interactor.query_count >= steps[next_step] {
-            let out_cnt = if next_step == steps.len() - 1 {
+            let is_final = next_step == steps.len() - 1;
+            let out_cnt = if is_final {
                 1000
             } else {
-                next_step
+                (interactor.query_count as f64 / 100.).ceil().min(5.) as usize
             };
             output_answer(
                 out_cnt,
