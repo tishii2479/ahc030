@@ -312,8 +312,8 @@ fn calc_high_prob(
                 var[i][j] += (v[i][j] as f64 - mean[i][j]).powf(2.);
             }
             var[i][j] /= top_k as f64;
-            var[i][j] += mean[i][j];
-            var[i][j] = var[i][j].max(0.1);
+            var[i][j] += mean[i][j] * 1.; // :param
+            var[i][j] = var[i][j].max(0.1); // :param
             var_sum += var[i][j];
         }
     }
@@ -404,7 +404,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             }
         }
         let obs_x = interactor.output_query(&s) as f64;
-        let obs_x = ((obs_x - query_size as f64 * input.eps) / (1. - 2. * input.eps)).max(0.);
+        let obs_x = (obs_x - query_size as f64 * input.eps) / (1. - 2. * input.eps);
 
         for (err, v) in cands.iter_mut() {
             let mut v_sum = 0.;
@@ -422,7 +422,6 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             } else {
                 time_limit * step_ratio[next_step]
             };
-
             optimizer.add_queries(queries);
             queries = vec![];
 
@@ -442,9 +441,16 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
                 answer_set.insert(v.clone());
                 cands.push((err, v));
             }
+        }
 
+        if interactor.query_count >= steps[next_step] {
+            let out_cnt = if next_step == steps.len() - 1 {
+                1000
+            } else {
+                next_step
+            };
             output_answer(
-                next_step,
+                out_cnt,
                 top_k,
                 &mut cands,
                 interactor,
