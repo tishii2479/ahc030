@@ -42,10 +42,10 @@ impl Interactor {
     pub fn read_answer(&mut self, input: &Input) -> Answer {
         input! {
             from &mut self.source,
-            _: [(usize, usize); input.m],
+            mino_pos: [(usize, usize); input.m],
             v: [[usize; input.n]; input.n]
         }
-        Answer { v }
+        Answer { mino_pos, v }
     }
 
     pub fn output_query(&mut self, s: &Vec<(usize, usize)>) -> i64 {

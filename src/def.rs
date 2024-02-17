@@ -6,5 +6,6 @@ pub struct Input {
 }
 
 pub struct Answer {
+    pub mino_pos: Vec<(usize, usize)>,
     pub v: Vec<Vec<usize>>,
 }
