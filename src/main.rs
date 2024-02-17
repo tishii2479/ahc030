@@ -660,6 +660,50 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     }
 }
 
+fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(usize, usize)> {
+    let mut mean = vec![vec![0.; input.n]; input.n];
+    let top_k = 100.min(cands.len());
+    for i in 0..input.n {
+        for j in 0..input.n {
+            for (_, v) in cands.iter().take(top_k) {
+                for (di, dj) in D {
+                    let (ni, nj) = (i + di, j + dj);
+                    if ni < input.n && nj < input.n && v[ni][nj] > 0 {
+                        mean[i][j] += 1.;
+                        break;
+                    }
+                }
+            }
+            mean[i][j] /= top_k as f64;
+        }
+    }
+    let mut var = vec![vec![0.; input.n]; input.n];
+    let mut var_sum = 0.;
+    for i in 0..input.n {
+        for j in 0..input.n {
+            for (_, v) in cands.iter().take(top_k) {
+                var[i][j] += (v[i][j] as f64 - mean[i][j]).powf(2.);
+            }
+            var[i][j] /= top_k as f64;
+            var[i][j] += mean[i][j];
+            var[i][j] = var[i][j].max(0.1);
+            var_sum += var[i][j];
+        }
+    }
+    let alpha = 10000. / var_sum;
+    let mut prob_v = Vec::with_capacity(11000);
+    for i in 0..input.n {
+        for j in 0..input.n {
+            let cnt = (var[i][j] * alpha).round().max(1.) as usize;
+            eprint!("{:8.5} ", var[i][j]);
+            prob_v.extend(vec![(i, j); cnt]);
+        }
+        eprintln!();
+    }
+
+    prob_v
+}
+
 fn solve2(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
@@ -716,62 +760,13 @@ fn solve2(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         let query_count = ((step_size * base_query_count as f64).round() as usize)
             .clamp(0, query_limit - interactor.query_count - i);
 
-        // 調査箇所の調整
-        // let mut high_prob_v = vec![];
-        // for i in 0..input.n {
-        //     for j in 0..input.n {
-        //         high_prob_v.extend(vec![(i, j); 5]);
-        //         for (_, v) in cands.iter().take(100) {
-        //             if v[i][j] > 0 {
-        //                 high_prob_v.push((i, j));
-        //             }
-        //         }
-        //     }
-        // }
-
-        let mut mean = vec![vec![0.; input.n]; input.n];
-        for i in 0..input.n {
-            for j in 0..input.n {
-                for (_, v) in cands.iter().take(100) {
-                    for (di, dj) in D {
-                        let (ni, nj) = (i + di, j + dj);
-                        if ni < input.n && nj < input.n && v[ni][nj] > 0 {
-                            mean[i][j] += 1.;
-                            break;
-                        }
-                    }
-                }
-                mean[i][j] /= 100.;
-            }
-        }
-        let mut var = vec![vec![0.; input.n]; input.n];
-        let mut var_sum = 0.;
-        for i in 0..input.n {
-            for j in 0..input.n {
-                for (_, v) in cands.iter().take(100) {
-                    var[i][j] += (v[i][j] as f64 - mean[i][j]).powf(2.);
-                }
-                var[i][j] /= 100.;
-                var[i][j] = var[i][j].max(0.1);
-                var_sum += var[i][j];
-            }
-        }
-        let alpha = 10000. / var_sum;
-        let mut high_prob_v = Vec::with_capacity(11000);
-        for i in 0..input.n {
-            for j in 0..input.n {
-                let cnt = (var[i][j] * alpha).round().max(1.) as usize;
-                high_prob_v.extend(vec![(i, j); cnt]);
-            }
-        }
-
-        eprintln!("high_prob_v.len() = {}", high_prob_v.len());
+        let prob_v = calc_high_prob(&cands, input);
 
         // 調査
         for _ in 0..query_count {
             let mut s = vec![];
             while s.len() < query_size {
-                let a = high_prob_v[rnd::gen_range(0, high_prob_v.len())];
+                let a = prob_v[rnd::gen_range(0, prob_v.len())];
                 if !s.contains(&a) && !fixed[a.0][a.1] {
                     s.push(a);
                 }
