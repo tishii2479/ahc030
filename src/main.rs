@@ -692,6 +692,9 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
 
         // 調査
         for _ in 0..query_count {
+            if interactor.query_count >= query_limit - 1 {
+                break;
+            }
             let mut s = vec![];
             while s.len() < query_size {
                 let a = prob_v[rnd::gen_range(0, prob_v.len())];
@@ -710,15 +713,6 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
                 *err += calc_error(v_sum, obs_x, s.len());
             }
             queries.push((s, obs_x));
-
-            if interactor.query_count == query_limit - 1 {
-                break;
-            }
-
-            // たまに出力する
-            if interactor.query_count % 30 == 0 {
-                output_answer(1, &mut cands, interactor, &mut checked_s, answer);
-            }
         }
 
         // 最適化
