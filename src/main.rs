@@ -83,14 +83,15 @@ impl MinoOptimizer {
     fn add_queries(&mut self, queries: Vec<(Vec<(usize, usize)>, f64)>) {
         let v = get_v(&self.mino_pos, &self.input.minos, self.input.n);
         self.query_cache.reserve(queries.len());
-        for (q_i, (s, x)) in queries.iter().enumerate() {
+        for (i, (s, x)) in queries.iter().enumerate() {
+            let q_i = self.queries.len() + i;
             let mut v_sum = 0.;
             for &(i, j) in s.iter() {
                 v_sum += v[i][j] as f64;
                 self.query_indices[i][j].push(q_i);
             }
             self.query_cache.push(v_sum);
-            self.score += calc_error(self.query_cache[q_i], *x, s.len());
+            self.score += calc_error(*x, v_sum, s.len());
         }
         self.queries.extend(queries);
     }
@@ -385,7 +386,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect();
     let mut next_step = 0;
 
-    let mut a = None;
+    let mut optimizer = MinoOptimizer::new(&input);
 
     loop {
         if next_step >= steps.len() {
@@ -422,11 +423,8 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
                 time_limit * step_ratio[next_step]
             };
 
-            let mut optimizer = MinoOptimizer::new(&input);
-            if let Some(a) = a {
-                optimizer.mino_pos = a;
-            }
-            optimizer.add_queries(queries.clone());
+            optimizer.add_queries(queries);
+            queries = vec![];
 
             let mut new_cands =
                 optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
@@ -455,8 +453,6 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             );
 
             next_step += 1;
-
-            a = Some(optimizer.mino_pos);
         }
     }
 
