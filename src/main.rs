@@ -129,7 +129,6 @@ impl MinoOptimizer {
             let adopt = if is_anneal {
                 let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
                 let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
-                // let temp = start_temp * (1. - progress) + end_temp * progress;
                 (-score_diff / temp).exp() > rnd::nextf()
             } else {
                 const EPS: f64 = 1e-6;
@@ -339,12 +338,13 @@ fn output_answer(
     checked_s: &mut HashSet<Vec<(usize, usize)>>,
     answer: &Option<Answer>,
 ) {
+    const INF: f64 = 1e50;
     cands.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     cands.truncate(top_k);
     for (err, v) in cands.iter_mut().take(out_cnt) {
         let s = get_s(&v);
         if checked_s.contains(&s) {
-            *err = 1e50;
+            *err = INF;
             continue;
         }
         eprintln!("mino_loss:   {:10.5}", err);
@@ -355,13 +355,14 @@ fn output_answer(
         if interactor.output_answer(&s) {
             exit(interactor);
         } else {
-            *err = 1e50;
+            *err = INF;
             checked_s.insert(s);
         }
     }
 }
 
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+    const OUT_LIM: usize = 5;
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
@@ -373,7 +374,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let mut cands: Vec<(f64, Vec<Vec<usize>>)> = vec![];
     let mut answer_set: HashSet<Vec<Vec<usize>>> = HashSet::new();
 
-    let base_query_count = get_query_count(input).clamp(10, query_limit - 5);
+    let base_query_count = get_query_count(input).clamp(10, query_limit - OUT_LIM);
     eprintln!("base_query_count = {}", base_query_count);
 
     // TODO: base_query_countごとに調整する
@@ -389,24 +390,19 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
 
     let mut optimizer = MinoOptimizer::new(&input);
 
-    loop {
-        if next_step >= steps.len() {
-            break;
-        }
-
+    while next_step < steps.len() {
         let prob_v = calc_high_prob(top_k, &cands, input);
 
         // 調査
-        let mut s = vec![];
+        let mut s = Vec::with_capacity(query_size);
         while s.len() < query_size {
             let a = prob_v[rnd::gen_range(0, prob_v.len())];
             if !s.contains(&a) && !fixed[a.0][a.1] {
                 s.push(a);
             }
         }
-        let obs_x = interactor.output_query(&s) as f64;
-        let obs_x = (obs_x - query_size as f64 * input.eps) / (1. - 2. * input.eps);
-
+        let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
+            / (1. - 2. * input.eps);
         for (err, v) in cands.iter_mut() {
             let mut v_sum = 0.;
             for &(i, j) in s.iter() {
@@ -416,57 +412,53 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         }
         queries.push((s, obs_x));
 
-        if interactor.query_count >= steps[next_step] {
-            let is_final = next_step == steps.len() - 1;
-            // 最適化
-            let optimize_time_limit = if is_final {
-                time_limit - time::elapsed_seconds()
-            } else {
-                time_limit * step_ratio[next_step]
-            };
-            optimizer.add_queries(queries);
-            queries = vec![];
+        if interactor.query_count < steps[next_step] {
+            continue;
+        }
 
-            let mut new_cands =
-                optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
-            new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let is_final_step = next_step == steps.len() - 1;
 
-            // 候補の追加
-            for (err, mino_pos) in new_cands.into_iter() {
-                if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
-                    break;
-                }
-                let v = get_v(&mino_pos, &input.minos, input.n);
-                if answer_set.contains(&v) {
-                    continue;
-                }
-                answer_set.insert(v.clone());
-                cands.push((err, v));
+        // 最適化
+        let optimize_time_limit = if is_final_step {
+            time_limit - time::elapsed_seconds()
+        } else {
+            time_limit * step_ratio[next_step]
+        };
+        optimizer.add_queries(queries);
+        queries = vec![];
+
+        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
+        new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        // 候補の追加
+        for (err, mino_pos) in new_cands.into_iter() {
+            if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
+                break;
             }
+            let v = get_v(&mino_pos, &input.minos, input.n);
+            if answer_set.contains(&v) {
+                continue;
+            }
+            answer_set.insert(v.clone());
+            cands.push((err, v));
         }
 
-        if interactor.query_count >= steps[next_step] {
-            let is_final = next_step == steps.len() - 1;
-            let out_cnt = if is_final {
-                1000
-            } else {
-                (interactor.query_count as f64 / 100.).ceil().min(5.) as usize
-            };
-            output_answer(
-                out_cnt,
-                top_k,
-                &mut cands,
-                interactor,
-                &mut checked_s,
-                answer,
-            );
+        let out_cnt = if is_final_step {
+            1000
+        } else {
+            ((interactor.query_count as f64 / 100.).ceil() as usize).min(OUT_LIM)
+        };
+        output_answer(
+            out_cnt,
+            top_k,
+            &mut cands,
+            interactor,
+            &mut checked_s,
+            answer,
+        );
 
-            next_step += 1;
-        }
+        next_step += 1;
     }
-
-    // 最後まで出力する
-    output_answer(1000, top_k, &mut cands, interactor, &mut checked_s, answer);
 }
 
 fn main() {

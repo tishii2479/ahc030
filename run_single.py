@@ -31,8 +31,8 @@ if __name__ == "__main__":
         ].sort_values(by="score")[:20]
     )
 
-    # with open("./score.log", "r") as f:
-    #     score_log = ast.literal_eval(f.read())
+    with open("./score.log", "r") as f:
+        score_log = ast.literal_eval(f.read())
 
-    # plt.plot(score_log)
-    # plt.show()
+    plt.plot(score_log)
+    plt.show()
