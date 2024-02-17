@@ -588,9 +588,13 @@ fn get_query_size(input: &Input) -> usize {
     (input.n as f64 * (5. - input.eps * 20.)).round() as usize
 }
 
-fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(usize, usize)> {
+fn calc_high_prob(
+    top_k: usize,
+    cands: &Vec<(f64, Vec<Vec<usize>>)>,
+    input: &Input,
+) -> Vec<(usize, usize)> {
     let mut mean = vec![vec![0.; input.n]; input.n];
-    let top_k = 100.min(cands.len());
+    let top_k = top_k.min(cands.len());
     for i in 0..input.n {
         for j in 0..input.n {
             for (_, v) in cands.iter().take(top_k) {
@@ -635,6 +639,7 @@ fn calc_high_prob(cands: &Vec<(f64, Vec<Vec<usize>>)>, input: &Input) -> Vec<(us
 fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
+    let top_k = 100;
     let query_size = get_query_size(input); // :param
 
     let mut queries = vec![];
@@ -655,6 +660,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let step_ratio: Vec<f64> = steps.iter().map(|x| x / step_sum).collect();
 
     fn output_answer(
+        out_cnt: usize,
         top_k: usize,
         cands: &mut Vec<(f64, Vec<Vec<usize>>)>,
         interactor: &mut Interactor,
@@ -662,7 +668,8 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         answer: &Option<Answer>,
     ) {
         cands.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-        for (err, v) in cands.iter_mut().take(top_k) {
+        cands.truncate(top_k);
+        for (err, v) in cands.iter_mut().take(out_cnt) {
             let s = get_s(&v);
             if checked_s.contains(&s) {
                 *err = 1e50;
@@ -688,7 +695,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         let query_count = ((step_size * base_query_count as f64).round() as usize)
             .clamp(0, query_limit - interactor.query_count - i);
 
-        let prob_v = calc_high_prob(&cands, input);
+        let prob_v = calc_high_prob(top_k, &cands, input);
 
         // 調査
         for _ in 0..query_count {
@@ -721,13 +728,14 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
         } else {
             time_limit * step_ratio[i]
         };
+
         let mut optimizer = MinoOptimizer::new(None, &queries, &input);
         let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
         new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         // 候補の追加
-        for (err, mino_pos) in new_cands {
-            if !cands.is_empty() && err > cands[0].0 * 2. {
+        for (err, mino_pos) in new_cands.into_iter() {
+            if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
                 break;
             }
             let v = get_v(&mino_pos, &input.minos, input.n);
@@ -738,11 +746,11 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
             cands.push((err, v));
         }
 
-        output_answer(i, &mut cands, interactor, &mut checked_s, answer);
+        output_answer(i, top_k, &mut cands, interactor, &mut checked_s, answer);
     }
 
     // 最後まで出力する
-    output_answer(1000, &mut cands, interactor, &mut checked_s, answer);
+    output_answer(1000, top_k, &mut cands, interactor, &mut checked_s, answer);
 }
 
 fn main() {
