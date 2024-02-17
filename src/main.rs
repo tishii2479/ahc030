@@ -646,7 +646,7 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     let base_query_count = get_query_count(input).clamp(10, query_limit);
     eprintln!("base_query_count = {}", base_query_count);
 
-    let steps = vec![0.0, 0.8, 1.2, 1.6, 2.0]; // TODO: base_query_countごとに調整する
+    let steps = vec![0.0, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // TODO: base_query_countごとに調整する
     let steps: Vec<f64> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
