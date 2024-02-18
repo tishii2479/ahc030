@@ -461,4 +461,5 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 # 2/18
 
 - 高速化
+    - calc_errorの割り算を削る
 - 改善

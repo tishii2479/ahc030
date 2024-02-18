@@ -96,7 +96,7 @@ impl MinoOptimizer {
         self.queries.extend(queries);
     }
 
-    fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
+    fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
         const EPS: f64 = 1e-6;
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
@@ -133,19 +133,18 @@ impl MinoOptimizer {
                 self.action_swap(3, &mut mino_is, &mut next_mino_poss)
             };
 
+            let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
+            let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
+            let threshold = self.score - temp * rnd::nextf().max(1e-6).ln();
             let mut new_score = 0.;
             for (i, (s, x)) in self.queries.iter().enumerate() {
+                if new_score > threshold {
+                    break;
+                }
                 new_score += calc_error(*x, self.query_cache[i], s.len());
             }
+            let adopt = new_score <= threshold;
 
-            let score_diff = new_score - self.score;
-            let adopt = if is_anneal {
-                let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
-                let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
-                (-score_diff / temp).exp() > rnd::nextf()
-            } else {
-                score_diff < -EPS
-            };
             if adopt {
                 self.score = new_score;
                 for i in 0..mino_is.len() {
@@ -425,7 +424,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         optimizer.add_queries(queries);
         queries = vec![];
 
-        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
+        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit);
         new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         // 候補の追加
