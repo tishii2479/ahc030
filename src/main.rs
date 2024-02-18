@@ -328,7 +328,9 @@ fn create_query(
     input: &Input,
 ) -> Vec<(usize, usize)> {
     let mut s = Vec::with_capacity(query_size);
-    let p = 0.9 - (input.m as f64).powf(2.) / 1000.; // :param
+    let p_max = 0.9;
+    let p_min = 0.5;
+    let p = p_max - (input.m as f64).powf(2.) / 400. * (p_max - p_min); // :param
     while s.len() < query_size {
         let a = prob_v[rnd::gen_index(prob_v.len())];
         if s.contains(&a) {
@@ -490,9 +492,9 @@ fn load_params() -> Param {
         }
     } else {
         Param {
-            min_k: 1.,
-            max_k: 5.,
-            k_p: 1.,
+            min_k: 4.,
+            max_k: 5.5,
+            k_p: 0.85,
         }
     }
 }
