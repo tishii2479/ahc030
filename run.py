@@ -49,7 +49,8 @@ class Runner:
 
     def run_case(self, input_file: str, output_file: str) -> IResult:
         cmd = f"{self.solver_cmd} < {input_file} > {output_file}"
-        proc = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE)
+        cwd = os.path.dirname(__file__)
+        proc = subprocess.run(cmd, shell=True, stderr=subprocess.PIPE, cwd=cwd)
         stderr = proc.stderr.decode("utf-8")
         result = self.result_class(stderr, input_file, self.solver_version)
         return result
@@ -145,6 +146,56 @@ class Runner:
         self.logger.info(
             f"Longest duration: {score_df.sort_values(by='duration').iloc[-1]}"
         )
+        self.logger.info(f"Fail count: {(score_df['score'] == 1000.).sum()}")
+
+        if columns is not None:
+            assert 1 <= len(columns) <= 2
+            for column in columns:
+                score_df[f"{column}_cut"] = pd.cut(score_df[column], 4)
+            cut_columns = list(map(lambda col: f"{col}_cut", columns))
+            if len(columns) == 1:
+                self.logger.info(
+                    score_df.groupby(f"{columns[0]}_cut")["relative_score"].mean()
+                )
+            elif len(columns) == 2:
+                self.logger.info(
+                    score_df[eval_items + cut_columns].pivot_table(
+                        index=f"{columns[0]}_cut", columns=f"{columns[1]}_cut"
+                    )
+                )
+
+        return score_df
+
+    def evaluate_overall_relative_score(
+        self,
+        columns: Optional[List[str]] = None,
+        eval_items: List[str] = ["score", "relative_score"],
+    ) -> pd.DataFrame:
+        self.logger.info(f"Evaluate: {self.solver_version}")
+        database_df = pd.read_csv(self.database_csv)
+        if self.input_csv is not None:
+            input_df = pd.read_csv(self.input_csv)
+            database_df = pd.merge(database_df, input_df, how="left", on="input_file")
+        score_df = database_df[
+            database_df.solver_version == self.solver_version
+        ].reset_index(drop=True)
+        best_scores = (
+            database_df.groupby("input_file")["score"].min().rename("best_score")
+        )
+        score_df = pd.merge(score_df, best_scores, on="input_file", how="left")
+        score_df["relative_score"] = score_df["best_score"] / score_df["score"]
+
+        self.logger.info(f"Raw score mean: {score_df.score.mean()}")
+        self.logger.info(f"Relative score mean: {score_df['relative_score'].mean()}")
+        self.logger.info(
+            f"Relative score median: {score_df['relative_score'].median()}"
+        )
+        self.logger.info("Top 10 improvements:")
+        self.logger.info(
+            score_df.sort_values(by="relative_score", ascending=False)[:10]
+        )
+        self.logger.info("Top 10 aggravations:")
+        self.logger.info(score_df.sort_values(by="relative_score")[:10])
         self.logger.info(f"Fail count: {(score_df['score'] == 1000.).sum()}")
 
         if columns is not None:
@@ -277,9 +328,10 @@ if __name__ == "__main__":
     if args.list_solver:
         runner.list_solvers()
     elif args.eval:
-        runner.evaluate_relative_score(
-            benchmark_solver_version=args.benchmark_solver_version, columns=columns
-        )
+        # runner.evaluate_relative_score(
+        #     benchmark_solver_version=args.benchmark_solver_version, columns=columns
+        # )
+        runner.evaluate_overall_relative_score(columns=columns)
     else:
         subprocess.run("cargo build --features local --release", shell=True)
         subprocess.run(
@@ -290,6 +342,7 @@ if __name__ == "__main__":
             for seed in range(args.start_case, args.start_case + args.case_num)
         ]
         runner.run(cases=cases, ignore=args.ignore, verbose=args.verbose)
-        runner.evaluate_relative_score(
-            benchmark_solver_version=args.benchmark_solver_version, columns=columns
-        )
+        # runner.evaluate_relative_score(
+        #     benchmark_solver_version=args.benchmark_solver_version, columns=columns
+        # )
+        runner.evaluate_overall_relative_score(columns=columns)

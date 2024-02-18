@@ -278,8 +278,9 @@ fn get_query_count(input: &Input) -> usize {
     pred.round().max(1.) as usize
 }
 
-fn get_query_size(input: &Input) -> usize {
-    (input.n as f64 * (5. - input.eps * 20.)).round() as usize
+fn get_query_size(input: &Input, param: &Param) -> usize {
+    let a = (param.max_k - param.min_k) / 0.2_f64.powf(param.k_p);
+    (input.n as f64 * (param.max_k - input.eps.powf(param.k_p) * a)).round() as usize
 }
 
 fn calc_high_prob(
@@ -361,12 +362,13 @@ fn output_answer(
     }
 }
 
-fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
+fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Option<Answer>) {
     const OUT_LIM: usize = 5;
     let time_limit = 2.8;
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
-    let query_size = get_query_size(input); // :param
+    let query_size = get_query_size(input, param); // :param
+    eprintln!("query_size: {}", query_size);
 
     let mut queries = vec![];
     let fixed = vec![vec![false; input.n]; input.n];
@@ -461,17 +463,42 @@ fn solve(interactor: &mut Interactor, input: &Input, answer: &Option<Answer>) {
     }
 }
 
+struct Param {
+    min_k: f64,
+    max_k: f64,
+    k_p: f64,
+}
+
+fn load_params() -> Param {
+    if false {
+        use std::env;
+        let args: Vec<String> = env::args().collect();
+        Param {
+            min_k: args[1].parse().unwrap(),
+            max_k: args[2].parse().unwrap(),
+            k_p: args[3].parse().unwrap(),
+        }
+    } else {
+        Param {
+            min_k: 2.957,
+            max_k: 5.555,
+            k_p: 0.855,
+        }
+    }
+}
+
 fn main() {
     time::start_clock();
     let mut interactor = Interactor::new();
     let input = interactor.read_input();
+    let param = load_params();
     let answer = if cfg!(feature = "local") {
         Some(interactor.read_answer(&input))
     } else {
         None
     };
 
-    solve(&mut interactor, &input, &answer);
+    solve(&mut interactor, &input, &param, &answer);
 
     // クエリを最後まで消費する
     loop {

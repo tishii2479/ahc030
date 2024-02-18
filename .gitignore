@@ -6,3 +6,5 @@ vis.html
 test.py
 main.py
 *.log
+*.db
+__pycache__
