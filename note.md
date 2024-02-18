@@ -462,4 +462,7 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 
 - 高速化
     - calc_errorの割り算を削る
-- 改善
+- チューニング
+    - クエリの大きさ
+    - 焼きなましの温度
+    - ステップ数、ステップ幅

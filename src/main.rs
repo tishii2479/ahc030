@@ -97,8 +97,8 @@ impl MinoOptimizer {
     }
 
     fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
-        let mut mino_is = vec![];
-        let mut next_mino_poss = vec![];
+        let mut mino_is = Vec::with_capacity(3);
+        let mut next_mino_poss = Vec::with_capacity(3);
 
         // TODO: epsによっても変更する
         // let e = (query_size as f64 * self.input.eps * (1. - self.input.eps)
@@ -217,9 +217,9 @@ impl MinoOptimizer {
             mino_is.push(mino_i);
             self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
-        let delta =
-            self.input_util.delta_neighbors[rnd::gen_index(self.input_util.delta_neighbors.len())];
         for i in 0..r {
+            let delta = self.input_util.delta_neighbors
+                [rnd::gen_index(self.input_util.delta_neighbors.len())];
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[i]],
                 self.input_util.mino_range[mino_is[i]],
@@ -330,13 +330,13 @@ fn output_answer(
     checked_s: &mut HashSet<Vec<(usize, usize)>>,
     answer: &Option<Answer>,
 ) {
-    const INF: f64 = 1e50;
+    // const INF: f64 = 1e50;
     cands.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     cands.truncate(top_k);
     for (err, v) in cands.iter_mut().take(out_cnt) {
         let s = get_s(&v);
         if checked_s.contains(&s) {
-            *err = INF;
+            // *err = INF;
             continue;
         }
 
@@ -347,7 +347,7 @@ fn output_answer(
             eprintln!("total_cost:  {:.5}", interactor.total_cost);
             exit(interactor);
         } else {
-            *err = INF;
+            // *err = INF;
             checked_s.insert(s);
         }
     }
@@ -371,13 +371,16 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
 
     // TODO: base_query_countごとに調整する
     let steps = vec![0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // :param
-    let steps: Vec<usize> = steps
+    let steps: Vec<f64> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
+        .collect();
+    let step_sum: f64 = steps.iter().map(|&x| x).sum();
+    let step_ratio: Vec<f64> = steps.iter().map(|&x| x / step_sum).collect(); // :param
+    let steps: Vec<usize> = steps
+        .into_iter()
         .map(|x| (x * base_query_count as f64).round() as usize)
         .collect();
-    let step_sum: usize = steps.iter().map(|&x| x).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect(); // :param
     let mut next_step = 0;
 
     let mut optimizer = MinoOptimizer::new(&input);
@@ -437,8 +440,8 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         let out_cnt = if is_final_step {
             1000
         } else {
-            ((interactor.query_count as f64 / 100.).ceil() as usize).min(OUT_LIM)
             // :param
+            ((interactor.query_count as f64 / 100.).ceil() as usize).min(OUT_LIM)
         };
         output_answer(
             out_cnt,
