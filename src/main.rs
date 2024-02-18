@@ -61,8 +61,8 @@ impl MinoOptimizer {
             let mut mino_pos = Vec::with_capacity(input.m);
             for k in 0..input.m {
                 mino_pos.push((
-                    rnd::gen_range(0, input_util.mino_range[k].0),
-                    rnd::gen_range(0, input_util.mino_range[k].1),
+                    rnd::gen_index(input_util.mino_range[k].0),
+                    rnd::gen_index(input_util.mino_range[k].1),
                 ));
             }
             mino_pos
@@ -97,7 +97,6 @@ impl MinoOptimizer {
     }
 
     fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
-        const EPS: f64 = 1e-6;
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
@@ -181,7 +180,7 @@ impl MinoOptimizer {
     ) {
         let r = r.min(self.mino_pos.len());
         while mino_is.len() < r {
-            let mino_i = rnd::gen_range(0, self.mino_pos.len());
+            let mino_i = rnd::gen_index(self.mino_pos.len());
             if mino_is.contains(&mino_i) {
                 continue;
             }
@@ -192,7 +191,7 @@ impl MinoOptimizer {
         for i in 0..r {
             let weighted_delta =
                 &self.input_util.delta_duplicates[mino_is[i]][mino_is[(i + 1) % r]];
-            let delta = weighted_delta[rnd::gen_range(0, weighted_delta.len())];
+            let delta = weighted_delta[rnd::gen_index(weighted_delta.len())];
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[(i + 1) % r]],
                 self.input_util.mino_range[mino_is[i]],
@@ -211,15 +210,15 @@ impl MinoOptimizer {
     ) {
         let r = r.min(self.mino_pos.len());
         while mino_is.len() < r {
-            let mino_i = rnd::gen_range(0, self.mino_pos.len());
+            let mino_i = rnd::gen_index(self.mino_pos.len());
             if mino_is.contains(&mino_i) {
                 continue;
             }
             mino_is.push(mino_i);
             self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
-        let delta = self.input_util.delta_neighbors
-            [rnd::gen_range(0, self.input_util.delta_neighbors.len())];
+        let delta =
+            self.input_util.delta_neighbors[rnd::gen_index(self.input_util.delta_neighbors.len())];
         for i in 0..r {
             let next_mino_pos = add_delta(
                 self.mino_pos[mino_is[i]],
@@ -236,11 +235,11 @@ impl MinoOptimizer {
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
     ) {
-        let mino_i = rnd::gen_range(0, self.mino_pos.len());
+        let mino_i = rnd::gen_index(self.mino_pos.len());
         self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         let next_mino_pos = (
-            rnd::gen_range(0, self.input_util.mino_range[mino_i].0),
-            rnd::gen_range(0, self.input_util.mino_range[mino_i].1),
+            rnd::gen_index(self.input_util.mino_range[mino_i].0),
+            rnd::gen_index(self.input_util.mino_range[mino_i].1),
         );
         self.toggle_mino(mino_i, next_mino_pos, true);
         mino_is.push(mino_i);
@@ -393,7 +392,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         // 調査
         let mut s = Vec::with_capacity(query_size);
         while s.len() < query_size {
-            let a = prob_v[rnd::gen_range(0, prob_v.len())];
+            let a = prob_v[rnd::gen_index(prob_v.len())];
             if !s.contains(&a) && !fixed[a.0][a.1] {
                 s.push(a);
             }
