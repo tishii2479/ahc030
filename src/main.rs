@@ -475,9 +475,9 @@ fn load_params() -> Param {
         }
     } else {
         Param {
-            min_k: 1.,
-            max_k: 5.,
-            k_p: 1.,
+            min_k: 4.,
+            max_k: 5.5,
+            k_p: 0.85,
         }
     }
 }
