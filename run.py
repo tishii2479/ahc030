@@ -170,9 +170,14 @@ class Runner:
         self,
         columns: Optional[List[str]] = None,
         eval_items: List[str] = ["score", "relative_score"],
+        ignore_solver_prefix: Optional[str] = None,
     ) -> pd.DataFrame:
         self.logger.info(f"Evaluate: {self.solver_version}")
         database_df = pd.read_csv(self.database_csv)
+        if ignore_solver_prefix is not None:
+            database_df = database_df[
+                ~database_df.solver_version.str.startswith(ignore_solver_prefix)
+            ]
         if self.input_csv is not None:
             input_df = pd.read_csv(self.input_csv)
             database_df = pd.merge(database_df, input_df, how="left", on="input_file")

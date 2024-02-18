@@ -376,6 +376,15 @@ fn output_answer(
     }
 }
 
+fn get_steps(param: &Param) -> Vec<f64> {
+    let mut steps = Vec::with_capacity(param.step_cnt);
+    let step_width = (param.end_step - param.start_step) / (param.step_cnt - 1) as f64;
+    for i in 0..param.step_cnt {
+        steps.push(param.start_step + i as f64 * step_width);
+    }
+    steps
+}
+
 fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Option<Answer>) {
     const OUT_LIM: usize = 5;
     let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.8 };
@@ -393,7 +402,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     eprintln!("base_query_count = {}", base_query_count);
 
     // TODO: base_query_countごとに調整する
-    let steps = vec![0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]; // :param
+    let steps = get_steps(param);
     let steps: Vec<f64> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
@@ -478,10 +487,13 @@ struct Param {
     min_k: f64,
     max_k: f64,
     k_p: f64,
+    start_step: f64,
+    end_step: f64,
+    step_cnt: usize,
 }
 
 fn load_params() -> Param {
-    let load_from_cmd_args = false;
+    let load_from_cmd_args = true;
     if load_from_cmd_args {
         use std::env;
         let args: Vec<String> = env::args().collect();
@@ -489,12 +501,18 @@ fn load_params() -> Param {
             min_k: args[1].parse().unwrap(),
             max_k: args[2].parse().unwrap(),
             k_p: args[3].parse().unwrap(),
+            start_step: args[4].parse().unwrap(),
+            end_step: args[5].parse().unwrap(),
+            step_cnt: args[6].parse().unwrap(),
         }
     } else {
         Param {
             min_k: 4.,
             max_k: 5.5,
             k_p: 0.85,
+            start_step: 0.8,
+            end_step: 2.0,
+            step_cnt: 7,
         }
     }
 }
