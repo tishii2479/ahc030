@@ -34,14 +34,14 @@ const D: [(usize, usize); 8] = [
 
 struct InputUtility {
     delta_neighbors: Vec<(i64, i64)>,
-    delta_duplicates: Vec<Vec<Vec<(i64, i64)>>>,
+    delta_duplicates: Vec<Vec<(i64, i64)>>,
     mino_range: Vec<(usize, usize)>,
 }
 
 struct MinoOptimizer {
     input_util: InputUtility,
     query_cache: Vec<f64>,
-    query_indices: Vec<Vec<Vec<usize>>>,
+    query_indices: Vec<Vec<usize>>,
     mino_pos: Vec<(usize, usize)>,
     score: f64,
     adopt_count: usize,
@@ -71,7 +71,7 @@ impl MinoOptimizer {
         MinoOptimizer {
             input_util,
             query_cache: vec![],
-            query_indices: vec![vec![vec![]; input.n]; input.n],
+            query_indices: vec![vec![]; input.n * input.n],
             mino_pos,
             score: 0.,
             adopt_count: 0,
@@ -88,7 +88,7 @@ impl MinoOptimizer {
             let mut v_sum = 0.;
             for &(i, j) in s.iter() {
                 v_sum += v[i][j] as f64;
-                self.query_indices[i][j].push(q_i);
+                self.query_indices[i * self.input.n + j].push(q_i);
             }
             self.query_cache.push(v_sum);
             self.score += calc_error(*x, v_sum, s.len());
@@ -97,8 +97,8 @@ impl MinoOptimizer {
     }
 
     fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
-        let mut mino_is = vec![];
-        let mut next_mino_poss = vec![];
+        let mut mino_is = Vec::with_capacity(3);
+        let mut next_mino_poss = Vec::with_capacity(3);
 
         // TODO: epsによっても変更する
         // let e = (query_size as f64 * self.input.eps * (1. - self.input.eps)
@@ -189,15 +189,16 @@ impl MinoOptimizer {
         }
 
         for i in 0..r {
-            let weighted_delta =
-                &self.input_util.delta_duplicates[mino_is[i]][mino_is[(i + 1) % r]];
+            let mino_i = mino_is[i];
+            let mino_j = mino_is[(i + 1) % r];
+            let weighted_delta = &self.input_util.delta_duplicates[mino_i * self.input.m + mino_j];
             let delta = weighted_delta[rnd::gen_index(weighted_delta.len())];
             let next_mino_pos = add_delta(
-                self.mino_pos[mino_is[(i + 1) % r]],
-                self.input_util.mino_range[mino_is[i]],
+                self.mino_pos[mino_j],
+                self.input_util.mino_range[mino_i],
                 delta,
             );
-            self.toggle_mino(mino_is[i], next_mino_pos, true);
+            self.toggle_mino(mino_i, next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
     }
@@ -219,13 +220,13 @@ impl MinoOptimizer {
         }
         let delta =
             self.input_util.delta_neighbors[rnd::gen_index(self.input_util.delta_neighbors.len())];
-        for i in 0..r {
+        for &mino_i in mino_is.iter() {
             let next_mino_pos = add_delta(
-                self.mino_pos[mino_is[i]],
-                self.input_util.mino_range[mino_is[i]],
+                self.mino_pos[mino_i],
+                self.input_util.mino_range[mino_i],
                 delta,
             );
-            self.toggle_mino(mino_is[i], next_mino_pos, true);
+            self.toggle_mino(mino_i, next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
     }
@@ -247,14 +248,11 @@ impl MinoOptimizer {
     }
 
     fn toggle_mino(&mut self, mino_i: usize, mino_pos: (usize, usize), turn_on: bool) {
+        let d = if turn_on { 1. } else { -1. };
         for &(_i, _j) in self.input.minos[mino_i].iter() {
             let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
-            for &q_i in self.query_indices[i][j].iter() {
-                if turn_on {
-                    self.query_cache[q_i] += 1.;
-                } else {
-                    self.query_cache[q_i] -= 1.;
-                }
+            for &q_i in self.query_indices[i * self.input.n + j].iter() {
+                self.query_cache[q_i] += d;
             }
         }
     }
@@ -365,10 +363,9 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     eprintln!("query_size: {}", query_size);
 
     let mut queries = vec![];
-    let fixed = vec![vec![false; input.n]; input.n];
     let mut checked_s = HashSet::new();
     let mut cands: Vec<(f64, Vec<Vec<usize>>)> = vec![];
-    let mut answer_set: HashSet<Vec<Vec<usize>>> = HashSet::new();
+    let mut answer_set: HashSet<Vec<(usize, usize)>> = HashSet::new();
 
     let base_query_count = get_query_count(input).clamp(10, query_limit - OUT_LIM);
     eprintln!("base_query_count = {}", base_query_count);
@@ -381,19 +378,18 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         .map(|x| (x * base_query_count as f64).round() as usize)
         .collect();
     let step_sum: usize = steps.iter().map(|&x| x as usize).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect();
+    let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect(); // :param
     let mut next_step = 0;
 
     let mut optimizer = MinoOptimizer::new(&input);
+    let mut prob_v = calc_high_prob(top_k, &cands, input);
 
     while next_step < steps.len() {
-        let prob_v = calc_high_prob(top_k, &cands, input);
-
         // 調査
         let mut s = Vec::with_capacity(query_size);
         while s.len() < query_size {
             let a = prob_v[rnd::gen_index(prob_v.len())];
-            if !s.contains(&a) && !fixed[a.0][a.1] {
+            if !s.contains(&a) {
                 s.push(a);
             }
         }
@@ -431,11 +427,11 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
             if cands.len() > top_k * 2 || (!cands.is_empty() && err > cands[0].0 * 2.) {
                 break;
             }
-            let v = get_v(&mino_pos, &input.minos, input.n);
-            if answer_set.contains(&v) {
+            if answer_set.contains(&mino_pos) {
                 continue;
             }
-            answer_set.insert(v.clone());
+            answer_set.insert(mino_pos.clone());
+            let v = get_v(&mino_pos, &input.minos, input.n);
             cands.push((err, v));
         }
 
@@ -443,6 +439,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
             1000
         } else {
             ((interactor.query_count as f64 / 100.).ceil() as usize).min(OUT_LIM)
+            // :param
         };
         output_answer(
             out_cnt,
@@ -454,6 +451,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         );
 
         next_step += 1;
+        prob_v = calc_high_prob(top_k, &cands, input);
     }
 }
 

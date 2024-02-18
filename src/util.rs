@@ -146,11 +146,8 @@ pub fn get_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
     delta
 }
 
-pub fn get_weighted_delta_using_duplication(
-    max_dist: i64,
-    input: &Input,
-) -> Vec<Vec<Vec<(i64, i64)>>> {
-    let mut weighted_delta = vec![vec![vec![]; input.m]; input.m];
+pub fn get_weighted_delta_using_duplication(max_dist: i64, input: &Input) -> Vec<Vec<(i64, i64)>> {
+    let mut weighted_delta = vec![vec![]; input.m * input.m];
     for mino_i in 0..input.m {
         for mino_j in 0..input.m {
             if mino_i == mino_j {
@@ -166,7 +163,7 @@ pub fn get_weighted_delta_using_duplication(
                         duplicate_count += 1;
                     }
                 }
-                weighted_delta[mino_i][mino_j].extend(vec![d; duplicate_count.max(1)]);
+                weighted_delta[mino_i * input.m + mino_j].extend(vec![d; duplicate_count.max(1)]);
             }
         }
     }
