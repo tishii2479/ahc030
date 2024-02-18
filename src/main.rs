@@ -119,6 +119,8 @@ impl MinoOptimizer {
             mino_is.clear();
             next_mino_poss.clear();
 
+            let query_cache_copy = self.query_cache.clone();
+
             let p = rnd::nextf();
             let score_diff = if p < 0.2 {
                 self.action_slide(1, &mut mino_is, &mut next_mino_poss)
@@ -146,10 +148,7 @@ impl MinoOptimizer {
                 cands.push((self.score, self.mino_pos.clone()));
                 self.adopt_count += 1;
             } else {
-                for i in 0..mino_is.len() {
-                    self.toggle_mino(mino_is[i], next_mino_poss[i], false);
-                    self.toggle_mino(mino_is[i], self.mino_pos[mino_is[i]], true);
-                }
+                self.query_cache = query_cache_copy;
             }
             iteration += 1;
 
@@ -283,7 +282,8 @@ fn get_query_count(input: &Input) -> usize {
 }
 
 fn get_query_size(input: &Input, param: &Param) -> usize {
-    let a = (param.max_k - param.min_k) / 0.2_f64.powf(param.k_p);
+    const EPS_MAX: f64 = 0.2;
+    let a = (param.max_k - param.min_k) / EPS_MAX.powf(param.k_p);
     (input.n as f64 * (param.max_k - input.eps.powf(param.k_p) * a)).round() as usize
 }
 
@@ -474,7 +474,8 @@ struct Param {
 }
 
 fn load_params() -> Param {
-    if false {
+    let load_from_cmd_args = false;
+    if load_from_cmd_args {
         use std::env;
         let args: Vec<String> = env::args().collect();
         Param {
