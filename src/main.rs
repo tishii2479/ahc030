@@ -483,6 +483,87 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     }
 }
 
+#[allow(unused)]
+fn solve_data_collection(
+    interactor: &mut Interactor,
+    input: &Input,
+    param: &Param,
+    answer: &Option<Answer>,
+) {
+    const OUT_LIM: usize = 5;
+    let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.8 };
+    let query_limit = input.n.pow(2) * 2;
+    let top_k = 100;
+    let query_size = get_query_size(input, param); // :param
+    eprintln!("query_size: {}", query_size);
+
+    let mut queries = vec![];
+    let mut checked_s = HashSet::new();
+    let mut cands: Vec<(f64, Vec<Vec<usize>>)> = vec![];
+    let mut answer_set: HashSet<Vec<(usize, usize)>> = HashSet::new();
+
+    let base_query_count = get_query_count(input).clamp(10, query_limit - OUT_LIM);
+    eprintln!("base_query_count = {}", base_query_count);
+
+    // TODO: base_query_countごとに調整する
+    let mut steps = vec![];
+    let mut step = 6;
+    while step < input.n * input.n * 2 {
+        steps.push(step);
+        step = (step as f64 * 1.1).ceil() as usize;
+    }
+    let mut next_step = 0;
+
+    let mut optimizer = MinoOptimizer::new(&input);
+    let mut prob_v = calc_v_prob(top_k, &cands, input);
+
+    while next_step < steps.len() {
+        // 調査
+        let s = create_query(query_size, &prob_v, input);
+        let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
+            / (1. - 2. * input.eps);
+        for (err, v) in cands.iter_mut() {
+            let mut v_sum = 0.;
+            for &(i, j) in s.iter() {
+                v_sum += v[i][j] as f64;
+            }
+            *err += calc_error(v_sum, obs_x, s.len());
+        }
+        queries.push((s, obs_x));
+
+        if interactor.query_count < steps[next_step] {
+            continue;
+        }
+
+        let is_final_step = next_step == steps.len() - 1;
+
+        // 最適化
+        let optimize_time_limit = 0.5;
+        optimizer.add_queries(queries);
+        queries = vec![];
+
+        let mut cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit);
+        cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        for (mino_loss, mino_pos) in cands.iter().take(5) {
+            let v = get_v(&mino_pos, &input.minos, input.n);
+            let s = get_s(&v);
+            if checked_s.contains(&s) {
+                continue;
+            }
+            if error_count(&v, answer) == 0 {
+                if interactor.output_answer(&s) {
+                    exit(interactor);
+                }
+            }
+
+            checked_s.insert(s);
+        }
+
+        next_step += 1;
+    }
+}
+
 struct Param {
     min_k: f64,
     max_k: f64,
@@ -493,7 +574,7 @@ struct Param {
 }
 
 fn load_params() -> Param {
-    let load_from_cmd_args = true;
+    let load_from_cmd_args = false;
     if load_from_cmd_args {
         use std::env;
         let args: Vec<String> = env::args().collect();
@@ -528,7 +609,8 @@ fn main() {
         None
     };
 
-    solve(&mut interactor, &input, &param, &answer);
+    // solve(&mut interactor, &input, &param, &answer);
+    solve_data_collection(&mut interactor, &input, &param, &answer);
 
     // クエリを最後まで消費する
     loop {

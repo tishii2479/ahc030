@@ -473,3 +473,5 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 - 情報収集の改善
     - ミノの形に応じて決定する
     - 差分があるような形を作る
+
+- kはinput.nに応じて変動させた方が良いのか？
