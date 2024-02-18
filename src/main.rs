@@ -97,6 +97,7 @@ impl MinoOptimizer {
     }
 
     fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
+        const EPS: f64 = 1e-6;
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
@@ -111,7 +112,7 @@ impl MinoOptimizer {
         let mut iteration = 0;
 
         let mut cands = vec![];
-        let mut score_log = vec![];
+        let mut score_log: Vec<f64> = vec![];
 
         let start_time = time::elapsed_seconds();
 
@@ -120,10 +121,6 @@ impl MinoOptimizer {
             next_mino_poss.clear();
 
             let query_cache_copy = self.query_cache.clone();
-            let mut score_diff = 0.;
-            for (i, (s, x)) in self.queries.iter().enumerate() {
-                score_diff -= calc_error(*x, self.query_cache[i], s.len());
-            }
 
             let p = rnd::nextf();
             if p < 0.2 {
@@ -136,20 +133,21 @@ impl MinoOptimizer {
                 self.action_swap(3, &mut mino_is, &mut next_mino_poss)
             };
 
+            let mut new_score = 0.;
             for (i, (s, x)) in self.queries.iter().enumerate() {
-                score_diff += calc_error(*x, self.query_cache[i], s.len());
+                new_score += calc_error(*x, self.query_cache[i], s.len());
             }
 
+            let score_diff = new_score - self.score;
             let adopt = if is_anneal {
                 let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
                 let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
                 (-score_diff / temp).exp() > rnd::nextf()
             } else {
-                const EPS: f64 = 1e-6;
                 score_diff < -EPS
             };
             if adopt {
-                self.score += score_diff;
+                self.score = new_score;
                 for i in 0..mino_is.len() {
                     self.mino_pos[mino_is[i]] = next_mino_poss[i];
                 }
@@ -160,7 +158,7 @@ impl MinoOptimizer {
             }
             iteration += 1;
 
-            if (iteration + 1) % 100 == 0 {
+            if (iteration + 1) % 1000 == 0 {
                 score_log.push(self.score);
             }
         }
@@ -240,6 +238,7 @@ impl MinoOptimizer {
         next_mino_poss: &mut Vec<(usize, usize)>,
     ) {
         let mino_i = rnd::gen_range(0, self.mino_pos.len());
+        self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         let next_mino_pos = (
             rnd::gen_range(0, self.input_util.mino_range[mino_i].0),
             rnd::gen_range(0, self.input_util.mino_range[mino_i].1),
@@ -270,9 +269,6 @@ fn get_query_count(input: &Input) -> usize {
     let dense = input.minos.iter().map(|mino| mino.len()).sum::<usize>() as f64 / (n * n);
 
     let pred = query_count_linear_regression(n, m, eps, dense);
-
-    // let query_limit = input.n.pow(2) * 2;
-    // let pred = pred * query_limit as f64;
 
     pred.round().max(1.) as usize
 }
