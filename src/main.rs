@@ -120,9 +120,13 @@ impl MinoOptimizer {
             next_mino_poss.clear();
 
             let query_cache_copy = self.query_cache.clone();
+            let mut score_diff = 0.;
+            for (i, (s, x)) in self.queries.iter().enumerate() {
+                score_diff -= calc_error(*x, self.query_cache[i], s.len());
+            }
 
             let p = rnd::nextf();
-            let score_diff = if p < 0.2 {
+            if p < 0.2 {
                 self.action_slide(1, &mut mino_is, &mut next_mino_poss)
             } else if p < 0.3 {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
@@ -131,6 +135,10 @@ impl MinoOptimizer {
             } else {
                 self.action_swap(3, &mut mino_is, &mut next_mino_poss)
             };
+
+            for (i, (s, x)) in self.queries.iter().enumerate() {
+                score_diff += calc_error(*x, self.query_cache[i], s.len());
+            }
 
             let adopt = if is_anneal {
                 let progress = (time::elapsed_seconds() - start_time) / (time_limit - start_time);
@@ -173,16 +181,15 @@ impl MinoOptimizer {
         r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-    ) -> f64 {
+    ) {
         let r = r.min(self.mino_pos.len());
-        let mut score_diff = 0.;
         while mino_is.len() < r {
             let mino_i = rnd::gen_range(0, self.mino_pos.len());
             if mino_is.contains(&mino_i) {
                 continue;
             }
             mino_is.push(mino_i);
-            score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
+            self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
 
         for i in 0..r {
@@ -194,11 +201,9 @@ impl MinoOptimizer {
                 self.input_util.mino_range[mino_is[i]],
                 delta,
             );
-            score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
+            self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
-
-        score_diff
     }
 
     fn action_slide(
@@ -206,16 +211,15 @@ impl MinoOptimizer {
         r: usize,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-    ) -> f64 {
+    ) {
         let r = r.min(self.mino_pos.len());
-        let mut score_diff = 0.;
         while mino_is.len() < r {
             let mino_i = rnd::gen_range(0, self.mino_pos.len());
             if mino_is.contains(&mino_i) {
                 continue;
             }
             mino_is.push(mino_i);
-            score_diff += self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
+            self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         }
         let delta = self.input_util.delta_neighbors
             [rnd::gen_range(0, self.input_util.delta_neighbors.len())];
@@ -225,45 +229,37 @@ impl MinoOptimizer {
                 self.input_util.mino_range[mino_is[i]],
                 delta,
             );
-            score_diff += self.toggle_mino(mino_is[i], next_mino_pos, true);
+            self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
-        score_diff
     }
 
     fn action_move_one(
         &mut self,
         mino_is: &mut Vec<usize>,
         next_mino_poss: &mut Vec<(usize, usize)>,
-    ) -> f64 {
+    ) {
         let mino_i = rnd::gen_range(0, self.mino_pos.len());
-        let mut score_diff = self.toggle_mino(mino_i, self.mino_pos[mino_i], false);
         let next_mino_pos = (
             rnd::gen_range(0, self.input_util.mino_range[mino_i].0),
             rnd::gen_range(0, self.input_util.mino_range[mino_i].1),
         );
-        score_diff += self.toggle_mino(mino_i, next_mino_pos, true);
+        self.toggle_mino(mino_i, next_mino_pos, true);
         mino_is.push(mino_i);
         next_mino_poss.push(next_mino_pos);
-        score_diff
     }
 
-    fn toggle_mino(&mut self, mino_i: usize, mino_pos: (usize, usize), turn_on: bool) -> f64 {
-        let mut score_diff = 0.;
+    fn toggle_mino(&mut self, mino_i: usize, mino_pos: (usize, usize), turn_on: bool) {
         for &(_i, _j) in self.input.minos[mino_i].iter() {
             let (i, j) = (mino_pos.0 + _i, mino_pos.1 + _j);
             for &q_i in self.query_indices[i][j].iter() {
-                let q_len = self.queries[q_i].0.len();
-                score_diff -= calc_error(self.query_cache[q_i], self.queries[q_i].1, q_len);
                 if turn_on {
                     self.query_cache[q_i] += 1.;
                 } else {
                     self.query_cache[q_i] -= 1.;
                 }
-                score_diff += calc_error(self.query_cache[q_i], self.queries[q_i].1, q_len);
             }
         }
-        score_diff
     }
 }
 
