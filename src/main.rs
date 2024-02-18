@@ -328,13 +328,14 @@ fn create_query(
     input: &Input,
 ) -> Vec<(usize, usize)> {
     let mut s = Vec::with_capacity(query_size);
+    let p = 0.9 - (input.m as f64).powf(2.) / 1000.; // :param
     while s.len() < query_size {
         let a = prob_v[rnd::gen_index(prob_v.len())];
         if s.contains(&a) {
             continue;
         }
         s.push(a);
-        while s.len() < query_size && rnd::nextf() < 0.7 {
+        while s.len() < query_size && rnd::nextf() < p {
             let d = D[rnd::gen_index(D.len())];
             let b = (a.0 + d.0, a.1 + d.1);
             if b.0 < input.n && b.1 < input.n && !s.contains(&b) {
