@@ -274,7 +274,7 @@ fn get_query_size(input: &Input, param: &Param) -> usize {
     (input.n as f64 * (param.max_k - input.eps.powf(param.k_p) * a)).round() as usize
 }
 
-fn calc_high_prob(
+fn calc_v_prob(
     top_k: usize,
     cands: &Vec<(f64, Vec<Vec<usize>>)>,
     input: &Input,
@@ -322,6 +322,29 @@ fn calc_high_prob(
     prob_v
 }
 
+fn create_query(
+    query_size: usize,
+    prob_v: &Vec<(usize, usize)>,
+    input: &Input,
+) -> Vec<(usize, usize)> {
+    let mut s = Vec::with_capacity(query_size);
+    while s.len() < query_size {
+        let a = prob_v[rnd::gen_index(prob_v.len())];
+        if s.contains(&a) {
+            continue;
+        }
+        s.push(a);
+        while s.len() < query_size && rnd::nextf() < 0.7 {
+            let d = D[rnd::gen_index(D.len())];
+            let b = (a.0 + d.0, a.1 + d.1);
+            if b.0 < input.n && b.1 < input.n && !s.contains(&b) {
+                s.push(b);
+            }
+        }
+    }
+    s
+}
+
 fn output_answer(
     out_cnt: usize,
     top_k: usize,
@@ -330,13 +353,11 @@ fn output_answer(
     checked_s: &mut HashSet<Vec<(usize, usize)>>,
     answer: &Option<Answer>,
 ) {
-    // const INF: f64 = 1e50;
     cands.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     cands.truncate(top_k);
     for (err, v) in cands.iter_mut().take(out_cnt) {
         let s = get_s(&v);
         if checked_s.contains(&s) {
-            // *err = INF;
             continue;
         }
 
@@ -347,7 +368,6 @@ fn output_answer(
             eprintln!("total_cost:  {:.5}", interactor.total_cost);
             exit(interactor);
         } else {
-            // *err = INF;
             checked_s.insert(s);
         }
     }
@@ -384,17 +404,11 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     let mut next_step = 0;
 
     let mut optimizer = MinoOptimizer::new(&input);
-    let mut prob_v = calc_high_prob(top_k, &cands, input);
+    let mut prob_v = calc_v_prob(top_k, &cands, input);
 
     while next_step < steps.len() {
         // 調査
-        let mut s = Vec::with_capacity(query_size);
-        while s.len() < query_size {
-            let a = prob_v[rnd::gen_index(prob_v.len())];
-            if !s.contains(&a) {
-                s.push(a);
-            }
-        }
+        let s = create_query(query_size, &prob_v, input);
         let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
             / (1. - 2. * input.eps);
         for (err, v) in cands.iter_mut() {
@@ -453,7 +467,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         );
 
         next_step += 1;
-        prob_v = calc_high_prob(top_k, &cands, input);
+        prob_v = calc_v_prob(top_k, &cands, input);
     }
 }
 
@@ -475,9 +489,9 @@ fn load_params() -> Param {
         }
     } else {
         Param {
-            min_k: 4.,
-            max_k: 5.5,
-            k_p: 0.85,
+            min_k: 1.,
+            max_k: 5.,
+            k_p: 1.,
         }
     }
 }

@@ -466,3 +466,8 @@ answers_set: HashSet<Vec<Vec<usize>>>,
     - クエリの大きさ
     - 焼きなましの温度
     - ステップ数、ステップ幅
+
+- 検証
+    - 4点swapの追加
+    - 2点swapの改善
+    - 情報収集の改善

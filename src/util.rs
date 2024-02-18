@@ -123,13 +123,6 @@ pub fn add_delta(
 
 #[inline]
 pub fn calc_error(y: f64, y_hat: f64, _s_len: usize) -> f64 {
-    fn _adjusted_q_len(x: usize) -> f64 {
-        if x == 1 {
-            1e-1 // :param
-        } else {
-            x as f64 // :param
-        }
-    }
     (y - y_hat).powf(2.) / _s_len as f64
 }
 
