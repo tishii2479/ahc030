@@ -348,12 +348,12 @@ fn output_answer(
             *err = INF;
             continue;
         }
-        eprintln!("mino_loss:   {:10.5}", err);
-        eprintln!("error_count: {}", error_count(&v, answer));
-        eprintln!("query_count: {}", interactor.query_count);
-        eprintln!("total_cost:  {:.5}", interactor.total_cost);
 
         if interactor.output_answer(&s) {
+            eprintln!("mino_loss:   {:10.5}", err);
+            eprintln!("error_count: {}", error_count(&v, answer));
+            eprintln!("query_count: {}", interactor.query_count);
+            eprintln!("total_cost:  {:.5}", interactor.total_cost);
             exit(interactor);
         } else {
             *err = INF;
@@ -364,7 +364,7 @@ fn output_answer(
 
 fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Option<Answer>) {
     const OUT_LIM: usize = 5;
-    let time_limit = 2.8;
+    let time_limit = if cfg!(feature = "local") { 1.8 } else { 2.8 };
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
     let query_size = get_query_size(input, param); // :param
@@ -480,9 +480,9 @@ fn load_params() -> Param {
         }
     } else {
         Param {
-            min_k: 2.957,
-            max_k: 5.555,
-            k_p: 0.855,
+            min_k: 1.,
+            max_k: 5.,
+            k_p: 1.,
         }
     }
 }
