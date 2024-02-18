@@ -97,8 +97,8 @@ impl MinoOptimizer {
     }
 
     fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
-        let mut mino_is = Vec::with_capacity(3);
-        let mut next_mino_poss = Vec::with_capacity(3);
+        let mut mino_is = vec![];
+        let mut next_mino_poss = vec![];
 
         // TODO: epsによっても変更する
         // let e = (query_size as f64 * self.input.eps * (1. - self.input.eps)
@@ -189,16 +189,15 @@ impl MinoOptimizer {
         }
 
         for i in 0..r {
-            let mino_i = mino_is[i];
-            let mino_j = mino_is[(i + 1) % r];
-            let weighted_delta = &self.input_util.delta_duplicates[mino_i * self.input.m + mino_j];
+            let weighted_delta =
+                &self.input_util.delta_duplicates[mino_is[i] * self.input.m + mino_is[(i + 1) % r]];
             let delta = weighted_delta[rnd::gen_index(weighted_delta.len())];
             let next_mino_pos = add_delta(
-                self.mino_pos[mino_j],
-                self.input_util.mino_range[mino_i],
+                self.mino_pos[mino_is[(i + 1) % r]],
+                self.input_util.mino_range[mino_is[i]],
                 delta,
             );
-            self.toggle_mino(mino_i, next_mino_pos, true);
+            self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
     }
@@ -220,13 +219,13 @@ impl MinoOptimizer {
         }
         let delta =
             self.input_util.delta_neighbors[rnd::gen_index(self.input_util.delta_neighbors.len())];
-        for &mino_i in mino_is.iter() {
+        for i in 0..r {
             let next_mino_pos = add_delta(
-                self.mino_pos[mino_i],
-                self.input_util.mino_range[mino_i],
+                self.mino_pos[mino_is[i]],
+                self.input_util.mino_range[mino_is[i]],
                 delta,
             );
-            self.toggle_mino(mino_i, next_mino_pos, true);
+            self.toggle_mino(mino_is[i], next_mino_pos, true);
             next_mino_poss.push(next_mino_pos);
         }
     }
@@ -377,7 +376,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
         .map(|x| (x * base_query_count as f64).round() as usize)
         .collect();
-    let step_sum: usize = steps.iter().map(|&x| x as usize).sum();
+    let step_sum: usize = steps.iter().map(|&x| x).sum();
     let step_ratio: Vec<f64> = steps.iter().map(|&x| x as f64 / step_sum as f64).collect(); // :param
     let mut next_step = 0;
 
