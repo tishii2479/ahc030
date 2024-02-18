@@ -96,13 +96,22 @@ impl MinoOptimizer {
         self.queries.extend(queries);
     }
 
-    fn optimize(&mut self, time_limit: f64, is_anneal: bool) -> Vec<(f64, Vec<(usize, usize)>)> {
+    fn optimize(
+        &mut self,
+        time_limit: f64,
+        is_anneal: bool,
+        query_size: usize,
+    ) -> Vec<(f64, Vec<(usize, usize)>)> {
         let mut mino_is = vec![];
         let mut next_mino_poss = vec![];
 
         // TODO: epsによっても変更する
-        let start_temp = self.input.n as f64 * self.queries.len() as f64 / 1e3; // :param
-        let end_temp = self.input.n as f64 * self.queries.len() as f64 / 1e5; // :param
+        let e = (query_size as f64 * self.input.eps * (1. - self.input.eps)
+            / (1. - 2. * self.input.eps).powf(2.))
+        .sqrt();
+        let b = e * self.input.n as f64 * self.queries.len() as f64;
+        let start_temp = b / 1e1; // :param
+        let end_temp = b / 1e4; // :param
 
         let mut iteration = 0;
 
@@ -429,7 +438,11 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         optimizer.add_queries(queries);
         queries = vec![];
 
-        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit, true);
+        let mut new_cands = optimizer.optimize(
+            time::elapsed_seconds() + optimize_time_limit,
+            true,
+            query_size,
+        );
         new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         // 候補の追加
