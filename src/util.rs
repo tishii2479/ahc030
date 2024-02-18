@@ -123,6 +123,7 @@ pub fn add_delta(
     (ni, nj)
 }
 
+#[inline]
 pub fn calc_error(y: f64, y_hat: f64, _s_len: usize) -> f64 {
     fn _adjusted_q_len(x: usize) -> f64 {
         if x == 1 {
@@ -131,8 +132,7 @@ pub fn calc_error(y: f64, y_hat: f64, _s_len: usize) -> f64 {
             x as f64 // :param
         }
     }
-    // (y - y_hat).powf(2.) / _adjusted_q_len(_s_len)
-    (y - y_hat).powf(2.)
+    (y - y_hat).powf(2.) / _s_len as f64
 }
 
 pub fn get_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
