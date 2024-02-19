@@ -1,7 +1,310 @@
-mod def;
-mod interactor;
-mod param;
-mod util;
+pub mod def {
+    #[derive(Clone)]
+    pub struct Input {
+        pub n: usize,
+        pub m: usize,
+        pub eps: f64,
+        pub minos: Vec<Vec<(usize, usize)>>,
+    }
+
+    pub struct Answer {
+        pub mino_pos: Vec<(usize, usize)>,
+        pub v: Vec<Vec<usize>>,
+    }
+}
+pub mod interactor {
+    use crate::def::*;
+    use std::io::{Stdin, Write};
+
+    use crate::util::*;
+
+    use proconio::*;
+
+    pub struct Interactor {
+        source: proconio::source::line::LineSource<std::io::BufReader<Stdin>>,
+        pub total_cost: f64,
+        pub query_count: usize,
+        query_limit: usize,
+    }
+
+    impl Interactor {
+        pub fn new() -> Interactor {
+            Interactor {
+                source: proconio::source::line::LineSource::new(std::io::BufReader::new(
+                    std::io::stdin(),
+                )),
+                total_cost: 0.,
+                query_count: 0,
+                query_limit: 0,
+            }
+        }
+
+        pub fn read_input(&mut self) -> Input {
+            input! { from &mut self.source, n: usize, m: usize, eps: f64};
+            let mut minos = Vec::with_capacity(m);
+            for _ in 0..m {
+                input! {
+                    from &mut self.source,
+                    d: usize,
+                    mino: [(usize, usize); d]
+                }
+                minos.push(mino);
+            }
+            self.query_limit = 2 * n * n;
+            Input { n, m, eps, minos }
+        }
+
+        pub fn read_answer(&mut self, input: &Input) -> Answer {
+            input! {
+                from &mut self.source,
+                mino_pos: [(usize, usize); input.m],
+                v: [[usize; input.n]; input.n]
+            }
+            Answer { mino_pos, v }
+        }
+
+        pub fn output_query(&mut self, s: &Vec<(usize, usize)>) -> i64 {
+            self.check_query_limit();
+
+            print!("q {}", s.len());
+            for (i, j) in s {
+                print!(" {} {}", i, j);
+            }
+            println!();
+            self.flush();
+            self.total_cost += 1. / (s.len() as f64).sqrt();
+            self.query_count += 1;
+
+            input! { from &mut self.source, x: i64 }
+            x
+        }
+
+        pub fn output_answer(&mut self, s: &Vec<(usize, usize)>) -> bool {
+            self.check_query_limit();
+
+            print!("a {}", s.len());
+            for (i, j) in s {
+                print!(" {} {}", i, j);
+            }
+            println!();
+            self.flush();
+            self.query_count += 1;
+
+            input! { from &mut self.source, t: usize }
+
+            if t == 0 {
+                self.total_cost += 1.;
+            }
+
+            t == 1
+        }
+
+        fn flush(&self) {
+            std::io::stdout().flush().unwrap();
+        }
+
+        fn check_query_limit(&self) {
+            if self.query_count >= self.query_limit {
+                eprintln!("failed to determine...");
+                eprintln!(
+                    "result: {{\"score\": {:.6}, \"duration\": {:.4}, \"query_count\": {}}}",
+                    1e3,
+                    time::elapsed_seconds(),
+                    self.query_count,
+                );
+                std::process::exit(0);
+            }
+        }
+    }
+}
+pub mod param {
+    #[rustfmt::skip]
+    #[allow(unused_variables)]
+    pub fn query_count_linear_regression(n: f64, m: f64, eps: f64, dense: f64) -> f64 {
+        93.502 * n + -381.9 * m + -310.85 * eps + 53.712 * n.powf(0.5) + 10.221 * n.powf(2.0) + -259.6 * m.powf(0.5) + -55.366 * m.powf(2.0) + -1770.9 * eps.powf(0.5) + -301.75 * eps.powf(2.0) + 93.502 * n.powf(0.5) * n.powf(0.5) + 0.0 * n.powf(0.5) / n.powf(0.5) + -1.18 * n.powf(0.5) * n.powf(2.0) + -16.472 * n.powf(0.5) / n.powf(2.0) + -166.55 * n.powf(0.5) * m.powf(0.5) + -85.709 * n.powf(0.5) / m.powf(0.5) + -2.7667 * n.powf(0.5) * m.powf(2.0) + -399.56 * n.powf(0.5) / m.powf(2.0) + -939.23 * n.powf(0.5) * eps.powf(0.5) + -79.973 * n.powf(0.5) / eps.powf(0.5) + -830.82 * n.powf(0.5) * eps.powf(2.0) + 0.033441 * n.powf(0.5) / eps.powf(2.0) + -1.1798 * n.powf(2.0) * n.powf(0.5) + 20.202 * n.powf(2.0) / n.powf(0.5) + 0.0052355 * n.powf(2.0) * n.powf(2.0) + 0.0 * n.powf(2.0) / n.powf(2.0) + -0.65602 * n.powf(2.0) * m.powf(0.5) + -9.9064 * n.powf(2.0) / m.powf(0.5) + -0.045097 * n.powf(2.0) * m.powf(2.0) + 6.0005 * n.powf(2.0) / m.powf(2.0) + 1.8334 * n.powf(2.0) * eps.powf(0.5) + 0.19666 * n.powf(2.0) / eps.powf(0.5) + 13.008 * n.powf(2.0) * eps.powf(2.0) + -0.00010062 * n.powf(2.0) / eps.powf(2.0) + -166.55 * m.powf(0.5) * n.powf(0.5) + -71.414 * m.powf(0.5) / n.powf(0.5) + -0.65521 * m.powf(0.5) * n.powf(2.0) + 9.1275 * m.powf(0.5) / n.powf(2.0) + -381.9 * m.powf(0.5) * m.powf(0.5) + 0.0 * m.powf(0.5) / m.powf(0.5) + 4.9746 * m.powf(0.5) * m.powf(2.0) + 15.799 * m.powf(0.5) / m.powf(2.0) + 1779.5 * m.powf(0.5) * eps.powf(0.5) + 147.91 * m.powf(0.5) / eps.powf(0.5) + 1359.3 * m.powf(0.5) * eps.powf(2.0) + -0.049246 * m.powf(0.5) / eps.powf(2.0) + -2.7676 * m.powf(2.0) * n.powf(0.5) + -123.77 * m.powf(2.0) / n.powf(0.5) + 0.056266 * m.powf(2.0) * n.powf(2.0) + 237.68 * m.powf(2.0) / n.powf(2.0) + 4.9746 * m.powf(2.0) * m.powf(0.5) + 479.47 * m.powf(2.0) / m.powf(0.5) + -0.0074567 * m.powf(2.0) * m.powf(2.0) + 0.0 * m.powf(2.0) / m.powf(2.0) + -3.2995 * m.powf(2.0) * eps.powf(0.5) + -0.79586 * m.powf(2.0) / eps.powf(0.5) + -39.131 * m.powf(2.0) * eps.powf(2.0) + 0.00031098 * m.powf(2.0) / eps.powf(2.0) + -939.23 * eps.powf(0.5) * n.powf(0.5) + -1151.3 * eps.powf(0.5) / n.powf(0.5) + 1.8334 * eps.powf(0.5) * n.powf(2.0) + -105.12 * eps.powf(0.5) / n.powf(2.0) + 1779.5 * eps.powf(0.5) * m.powf(0.5) + 3531.3 * eps.powf(0.5) / m.powf(0.5) + -3.2995 * eps.powf(0.5) * m.powf(2.0) + 976.6 * eps.powf(0.5) / m.powf(2.0) + -310.85 * eps.powf(0.5) * eps.powf(0.5) + 0.0 * eps.powf(0.5) / eps.powf(0.5) + -376.05 * eps.powf(0.5) * eps.powf(2.0) + -0.20578 * eps.powf(0.5) / eps.powf(2.0) + -830.82 * eps.powf(2.0) * n.powf(0.5) + -112.75 * eps.powf(2.0) / n.powf(0.5) + 13.008 * eps.powf(2.0) * n.powf(2.0) + -6.6087 * eps.powf(2.0) / n.powf(2.0) + 1359.3 * eps.powf(2.0) * m.powf(0.5) + 1147.4 * eps.powf(2.0) / m.powf(0.5) + -39.131 * eps.powf(2.0) * m.powf(2.0) + 1423.0 * eps.powf(2.0) / m.powf(2.0) + -376.05 * eps.powf(2.0) * eps.powf(0.5) + -111.33 * eps.powf(2.0) / eps.powf(0.5) + -140.96 * eps.powf(2.0) * eps.powf(2.0) + 0.0 * eps.powf(2.0) / eps.powf(2.0) + 826.02
+    }
+}
+pub mod util {
+    use crate::def::*;
+    use crate::interactor::*;
+
+    use itertools::iproduct;
+    use std::collections::HashSet;
+
+    pub mod rnd {
+        static mut S: usize = 88172645463325252;
+
+        #[inline]
+        #[allow(unused)]
+        pub fn next() -> usize {
+            unsafe {
+                S = S ^ S << 7;
+                S = S ^ S >> 9;
+                S
+            }
+        }
+
+        #[inline]
+        #[allow(unused)]
+        pub fn nextf() -> f64 {
+            (next() & 4294967295) as f64 / 4294967296.
+        }
+
+        #[inline]
+        #[allow(unused)]
+        pub fn gen_range(low: usize, high: usize) -> usize {
+            assert!(low < high);
+            (next() % (high - low)) + low
+        }
+
+        #[inline]
+        #[allow(unused)]
+        pub fn gen_index(len: usize) -> usize {
+            next() % len
+        }
+    }
+
+    pub mod time {
+        static mut START: f64 = -1.;
+
+        #[allow(unused)]
+        pub fn start_clock() {
+            let _ = elapsed_seconds();
+        }
+
+        #[inline]
+        #[allow(unused)]
+        pub fn elapsed_seconds() -> f64 {
+            let t = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64();
+            unsafe {
+                if START < 0. {
+                    START = t;
+                }
+                t - START
+            }
+        }
+    }
+
+    pub fn get_s(v: &Vec<Vec<usize>>) -> Vec<(usize, usize)> {
+        let mut s = Vec::with_capacity(v.len() * v.len());
+        for i in 0..v.len() {
+            for j in 0..v[i].len() {
+                if v[i][j] > 0 {
+                    s.push((i, j));
+                }
+            }
+        }
+        s
+    }
+
+    pub fn get_v(
+        mino_pos: &Vec<(usize, usize)>,
+        minos: &Vec<Vec<(usize, usize)>>,
+        n: usize,
+    ) -> Vec<Vec<usize>> {
+        let mut v = vec![vec![0; n]; n];
+        for (pos, mino) in std::iter::zip(mino_pos, minos) {
+            for (i, j) in mino {
+                v[pos.0 + i][pos.1 + j] += 1;
+            }
+        }
+        v
+    }
+
+    pub fn error_count(v: &Vec<Vec<usize>>, answer: &Option<Answer>) -> i64 {
+        let Some(answer) = answer else { return 0 };
+        let mut error_count = 0;
+        for i in 0..v.len() {
+            for j in 0..v[i].len() {
+                if answer.v[i][j] != v[i][j] {
+                    error_count += 1;
+                }
+            }
+        }
+        error_count
+    }
+
+    pub fn exit(interactor: &mut Interactor) {
+        eprintln!(
+            "result: {{\"score\": {:.6}, \"duration\": {:.4}, \"query_count\": {}}}",
+            interactor.total_cost,
+            time::elapsed_seconds(),
+            interactor.query_count,
+        );
+        std::process::exit(0);
+    }
+
+    pub fn add_delta(
+        from_pos: (usize, usize),
+        mino_range: (usize, usize),
+        delta: (i64, i64),
+    ) -> (usize, usize) {
+        // TODO: 外れているならNoneを返す、現状は少し偏っている
+        let ni = (from_pos.0 as i64 + delta.0).clamp(0, mino_range.0 as i64 - 1) as usize;
+        let nj = (from_pos.1 as i64 + delta.1).clamp(0, mino_range.1 as i64 - 1) as usize;
+        (ni, nj)
+    }
+
+    #[inline]
+    pub fn calc_error(y: f64, y_hat: f64, inv_q_len: f64) -> f64 {
+        (y - y_hat).powf(2.) * inv_q_len
+    }
+
+    pub fn get_weighted_delta_using_neighbors(max_dist: i64, p: f64) -> Vec<(i64, i64)> {
+        let mut delta = vec![];
+        for (di, dj) in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
+            let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
+            let cnt = ((max_dist as f64 * 2.).powf(p) / dist.powf(p))
+                .round()
+                .max(1.) as usize;
+            delta.extend(vec![(di, dj); cnt]);
+        }
+        delta
+    }
+
+    pub fn get_weighted_delta_using_duplication(
+        max_dist: i64,
+        min_d: usize,
+        input: &Input,
+    ) -> Vec<Vec<(i64, i64)>> {
+        let mut weighted_delta = vec![vec![]; input.m * input.m];
+        for mino_i in 0..input.m {
+            for mino_j in 0..input.m {
+                if mino_i == mino_j {
+                    continue;
+                }
+                let set: HashSet<&(usize, usize)> = HashSet::from_iter(input.minos[mino_j].iter());
+                for d in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
+                    let mut duplicate_count = 0;
+                    for &p in &input.minos[mino_i] {
+                        let (i, j) = (p.0 as i64 + d.0, p.1 as i64 + d.1);
+                        let v = (i as usize, j as usize);
+                        if set.contains(&v) {
+                            duplicate_count += 1;
+                        }
+                    }
+                    weighted_delta[mino_i * input.m + mino_j]
+                        .extend(vec![d; duplicate_count.max(min_d)]);
+                }
+            }
+        }
+
+        weighted_delta
+    }
+
+    pub fn get_mino_range(input: &Input) -> Vec<(usize, usize)> {
+        let mut ranges = Vec::with_capacity(input.minos.len());
+        for mino in input.minos.iter() {
+            let i_max = mino.iter().map(|&x| x.0).max().unwrap();
+            let j_max = mino.iter().map(|&x| x.1).max().unwrap();
+            ranges.push((input.n - i_max, input.n - j_max));
+        }
+        ranges
+    }
+}
 
 use crate::def::*;
 use crate::interactor::*;
