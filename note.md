@@ -484,3 +484,5 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 2. 調査周辺
 3. 焼きなましの温度
 4. クエリサイズ
+
+- extremeの対策

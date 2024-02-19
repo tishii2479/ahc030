@@ -277,6 +277,7 @@ fn get_query_size(input: &Input, param: &Param) -> usize {
 fn calc_v_prob(
     top_k: usize,
     cands: &Vec<(f64, Vec<Vec<usize>>)>,
+    param: &Param,
     input: &Input,
 ) -> Vec<(usize, usize)> {
     let mut mean = vec![vec![0.; input.n]; input.n];
@@ -303,8 +304,8 @@ fn calc_v_prob(
                 var[i][j] += (v[i][j] as f64 - mean[i][j]).powf(2.);
             }
             var[i][j] /= top_k as f64;
-            var[i][j] += mean[i][j] * 1.; // :param
-            var[i][j] = var[i][j].max(0.1); // :param
+            var[i][j] += mean[i][j] * param.v_prob_mean_w;
+            var[i][j] = var[i][j].max(param.v_prob_min_var);
             var_sum += var[i][j];
         }
     }
@@ -325,12 +326,11 @@ fn calc_v_prob(
 fn create_query(
     query_size: usize,
     prob_v: &Vec<(usize, usize)>,
+    param: &Param,
     input: &Input,
 ) -> Vec<(usize, usize)> {
     let mut s = Vec::with_capacity(query_size);
-    let p_max = 0.9;
-    let p_min = 0.5;
-    let p = p_max - (input.m as f64).powf(2.) / 400. * (p_max - p_min); // :param
+    let p = param.p_max - (input.m as f64).powf(2.) / 400. * (param.p_max - param.p_min);
     while s.len() < query_size {
         let a = prob_v[rnd::gen_index(prob_v.len())];
         if s.contains(&a) {
@@ -416,11 +416,11 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     let mut next_step = 0;
 
     let mut optimizer = MinoOptimizer::new(&input);
-    let mut prob_v = calc_v_prob(top_k, &cands, input);
+    let mut prob_v = calc_v_prob(top_k, &cands, param, input);
 
     while next_step < steps.len() {
         // 調査
-        let s = create_query(query_size, &prob_v, input);
+        let s = create_query(query_size, &prob_v, param, input);
         let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
             / (1. - 2. * input.eps);
         for (err, v) in cands.iter_mut() {
@@ -479,7 +479,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         );
 
         next_step += 1;
-        prob_v = calc_v_prob(top_k, &cands, input);
+        prob_v = calc_v_prob(top_k, &cands, param, input);
     }
 }
 
@@ -490,6 +490,10 @@ struct Param {
     start_step: f64,
     end_step: f64,
     step_cnt: usize,
+    v_prob_mean_w: f64,
+    v_prob_min_var: f64,
+    p_max: f64,
+    p_min: f64,
 }
 
 fn load_params() -> Param {
@@ -504,15 +508,23 @@ fn load_params() -> Param {
             start_step: args[4].parse().unwrap(),
             end_step: args[5].parse().unwrap(),
             step_cnt: args[6].parse().unwrap(),
+            v_prob_mean_w: args[7].parse().unwrap(),
+            v_prob_min_var: args[8].parse().unwrap(),
+            p_max: args[9].parse().unwrap(),
+            p_min: args[10].parse().unwrap(),
         }
     } else {
         Param {
             min_k: 4.,
             max_k: 5.5,
             k_p: 0.85,
-            start_step: 0.75,
+            start_step: 0.748,
             end_step: 1.8,
-            step_cnt: 4,
+            step_cnt: 5,
+            v_prob_mean_w: 1.460,
+            v_prob_min_var: 0.027,
+            p_max: 0.989,
+            p_min: 0.421,
         }
     }
 }
