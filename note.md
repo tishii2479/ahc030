@@ -487,3 +487,7 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 
 - extremeの対策
 - 保守的なやつも投げてみる
+
+- 高速化
+- create_queryの工夫
+- f16

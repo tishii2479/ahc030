@@ -93,11 +93,12 @@ impl MinoOptimizer {
         self.query_cache.reserve(queries.len());
         for (i, (s, x)) in queries.iter().enumerate() {
             let q_i = self.queries.len() + i;
-            let mut v_sum = 0.;
+            let mut v_sum = 0;
             for &(i, j) in s.iter() {
-                v_sum += v[i][j] as f64;
+                v_sum += v[i][j];
                 self.query_indices[i * self.input.n + j].push(q_i);
             }
+            let v_sum = v_sum as f64;
             self.query_cache.push(v_sum);
             self.score += calc_error(*x, v_sum, self.inv_query_size);
         }
@@ -108,19 +109,14 @@ impl MinoOptimizer {
         let mut mino_is = Vec::with_capacity(3);
         let mut next_mino_poss = Vec::with_capacity(3);
 
-        // TODO: epsによっても変更する
-        // let e = (query_size as f64 * self.input.eps * (1. - self.input.eps)
-        //     / (1. - 2. * self.input.eps).powf(2.))
-        // .sqrt();
-        let b = self.input.n as f64 * self.queries.len() as f64;
+        let action_ratio = param.get_action_ratio();
+        let b = (self.input.n * self.queries.len()) as f64;
         let start_temp = b / param.start_temp_coef;
         let end_temp = b / param.end_temp_coef;
 
         let mut iteration = 0;
 
         let mut cands = vec![];
-        let mut score_log: Vec<f64> = vec![];
-
         let start_time = time::elapsed_seconds();
 
         while time::elapsed_seconds() < time_limit {
@@ -130,11 +126,11 @@ impl MinoOptimizer {
             let query_cache_copy = self.query_cache.clone();
 
             let p = rnd::nextf();
-            if p < 0.2 {
+            if p < action_ratio[0] {
                 self.action_slide(1, &mut mino_is, &mut next_mino_poss)
-            } else if p < 0.3 {
+            } else if p < action_ratio[1] {
                 self.action_move_one(&mut mino_is, &mut next_mino_poss)
-            } else if p < 0.9 {
+            } else if p < action_ratio[2] {
                 self.action_swap(2, &mut mino_is, &mut next_mino_poss)
             } else {
                 self.action_swap(3, &mut mino_is, &mut next_mino_poss)
@@ -163,20 +159,9 @@ impl MinoOptimizer {
                 self.query_cache = query_cache_copy;
             }
             iteration += 1;
-
-            if (iteration + 1) % 1000 == 0 {
-                score_log.push(self.score);
-            }
-        }
-
-        if cfg!(feature = "local") {
-            use std::io::Write;
-            let mut file = std::fs::File::create("score.log").unwrap();
-            writeln!(&mut file, "{:?}", score_log).unwrap();
         }
 
         eprintln!("adopt_count: {} / {}", self.adopt_count, iteration);
-
         cands
     }
 
@@ -306,9 +291,7 @@ fn calc_v_prob(
         for j in 0..input.n {
             let cnt = (var[i][j] * alpha).round().max(1.) as usize;
             prob_v.extend(vec![(i, j); cnt]);
-            // eprint!("{:8.5} ", var[i][j]);
         }
-        // eprintln!();
     }
 
     prob_v
@@ -369,7 +352,7 @@ fn output_answer(
 
 fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Option<Answer>) {
     const OUT_LIM: usize = 5;
-    let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.8 };
+    let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.9 };
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
     let query_size = param.get_query_size(input);
@@ -385,27 +368,27 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         .clamp(10, query_limit - OUT_LIM);
     eprintln!("base_query_count = {}", base_query_count);
 
-    // TODO: base_query_countごとに調整する
     let steps = param.get_steps();
     let steps: Vec<f64> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
         .collect();
-    let step_sum: f64 = steps.iter().map(|&x| x).sum();
+    let step_sum: f64 = steps.iter().map(|&x| x.powf(param.step_p)).sum();
     let step_ratio: Vec<f64> = steps
         .iter()
         .map(|&x| x.powf(param.step_p) / step_sum)
         .collect();
     let steps: Vec<usize> = steps
         .into_iter()
-        .map(|x| (x.powf(param.step_p) * base_query_count as f64).round() as usize)
+        .map(|x| (x * base_query_count as f64).round() as usize)
         .collect();
+    eprintln!("steps: {:?}", steps);
     let mut next_step = 0;
 
     let mut optimizer = MinoOptimizer::new(param, input);
     let mut prob_v = calc_v_prob(top_k, &cands, param, input);
 
-    while next_step < steps.len() {
+    while interactor.query_count + 1 < query_limit {
         // 調査
         let s = create_query(query_size, &prob_v, param, input);
         let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
@@ -419,7 +402,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         }
         queries.push((s, obs_x));
 
-        if interactor.query_count < steps[next_step] {
+        if next_step >= steps.len() || interactor.query_count < steps[next_step] {
             continue;
         }
 
@@ -468,6 +451,8 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         next_step += 1;
         prob_v = calc_v_prob(top_k, &cands, param, input);
     }
+
+    output_answer(1000, top_k, &mut cands, interactor, &mut checked_s, answer);
 }
 
 struct Param {
@@ -488,6 +473,10 @@ struct Param {
     out_step_size: f64,
     start_temp_coef: f64,
     end_temp_coef: f64,
+    action_slide_ratio: f64,
+    action_move_one: f64,
+    action_swap_2: f64,
+    action_swap_3: f64,
 }
 
 impl Param {
@@ -516,6 +505,23 @@ impl Param {
         let a = (self.max_k - self.min_k) / EPS_MAX.powf(self.k_p);
         (input.n as f64 * (self.max_k - input.eps.powf(self.k_p) * a)).round() as usize
     }
+
+    fn get_action_ratio(&self) -> Vec<f64> {
+        let mut p = vec![
+            self.action_slide_ratio,
+            self.action_move_one,
+            self.action_swap_2,
+            self.action_swap_3,
+        ];
+        let p_sum: f64 = p.iter().sum();
+        for e in p.iter_mut() {
+            *e /= p_sum;
+        }
+        for i in 0..p.len() - 1 {
+            p[i + 1] += p[i];
+        }
+        p
+    }
 }
 
 fn load_params() -> Param {
@@ -541,15 +547,19 @@ fn load_params() -> Param {
             out_step_size: args[15].parse().unwrap(),
             start_temp_coef: args[16].parse().unwrap(),
             end_temp_coef: args[17].parse().unwrap(),
+            action_slide_ratio: args[18].parse().unwrap(),
+            action_move_one: args[19].parse().unwrap(),
+            action_swap_2: args[20].parse().unwrap(),
+            action_swap_3: args[21].parse().unwrap(),
         }
     } else {
         Param {
             min_k: 4.,
             max_k: 5.5,
             k_p: 0.85,
-            start_step: 0.748,
-            end_step: 1.8,
-            step_cnt: 5,
+            start_step: 0.739561,
+            end_step: 1.54497,
+            step_cnt: 4,
             v_prob_mean_w: 1.460,
             v_prob_min_var: 0.027,
             p_max: 0.989,
@@ -561,6 +571,10 @@ fn load_params() -> Param {
             out_step_size: 100.,
             start_temp_coef: 1e3,
             end_temp_coef: 1e5,
+            action_slide_ratio: 0.2,
+            action_move_one: 0.1,
+            action_swap_2: 0.6,
+            action_swap_3: 0.1,
         }
     }
 }
