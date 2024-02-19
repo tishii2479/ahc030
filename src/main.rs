@@ -390,7 +390,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.8 };
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
-    let query_size = get_query_size(input, param); // :param
+    let query_size = get_query_size(input, param);
     eprintln!("query_size: {}", query_size);
 
     let mut queries = vec![];
@@ -510,9 +510,9 @@ fn load_params() -> Param {
             min_k: 4.,
             max_k: 5.5,
             k_p: 0.85,
-            start_step: 0.8,
-            end_step: 2.0,
-            step_cnt: 7,
+            start_step: 0.75,
+            end_step: 1.8,
+            step_cnt: 4,
         }
     }
 }

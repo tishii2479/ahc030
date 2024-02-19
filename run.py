@@ -176,7 +176,8 @@ class Runner:
         database_df = pd.read_csv(self.database_csv)
         if ignore_solver_prefix is not None:
             database_df = database_df[
-                ~database_df.solver_version.str.startswith(ignore_solver_prefix)
+                (~database_df.solver_version.str.startswith(ignore_solver_prefix))
+                | (database_df.solver_version == self.solver_version)
             ]
         if self.input_csv is not None:
             input_df = pd.read_csv(self.input_csv)
