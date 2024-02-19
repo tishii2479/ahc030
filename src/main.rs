@@ -388,7 +388,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     let mut optimizer = MinoOptimizer::new(param, input);
     let mut prob_v = calc_v_prob(top_k, &cands, param, input);
 
-    while interactor.query_count + 1 < query_limit {
+    while time::elapsed_seconds() < 2.98 && interactor.query_count + 1 < query_limit {
         // 調査
         let s = create_query(query_size, &prob_v, param, input);
         let obs_x = (interactor.output_query(&s) as f64 - query_size as f64 * input.eps)
@@ -554,12 +554,12 @@ fn load_params() -> Param {
         }
     } else {
         Param {
-            min_k: 4.,
+            min_k: 3.,
             max_k: 5.5,
             k_p: 0.85,
-            start_step: 0.739561,
-            end_step: 1.54497,
-            step_cnt: 4,
+            start_step: 0.74,
+            end_step: 1.8,
+            step_cnt: 5,
             v_prob_mean_w: 1.460,
             v_prob_min_var: 0.027,
             p_max: 0.989,
