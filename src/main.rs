@@ -46,6 +46,7 @@ struct MinoOptimizer {
     score: f64,
     adopt_count: usize,
     queries: Vec<(Vec<(usize, usize)>, f64)>,
+    inv_query_size: f64,
     input: Input,
 }
 
@@ -82,6 +83,7 @@ impl MinoOptimizer {
             score: 0.,
             adopt_count: 0,
             queries: vec![],
+            inv_query_size: 1. / param.get_query_size(input) as f64,
             input: input.clone(),
         }
     }
@@ -97,7 +99,7 @@ impl MinoOptimizer {
                 self.query_indices[i * self.input.n + j].push(q_i);
             }
             self.query_cache.push(v_sum);
-            self.score += calc_error(*x, v_sum, s.len());
+            self.score += calc_error(*x, v_sum, self.inv_query_size);
         }
         self.queries.extend(queries);
     }
@@ -142,11 +144,11 @@ impl MinoOptimizer {
             let temp: f64 = start_temp.powf(1. - progress) * end_temp.powf(progress);
             let threshold = self.score - temp * rnd::nextf().max(1e-6).ln();
             let mut new_score = 0.;
-            for (i, (s, x)) in self.queries.iter().enumerate() {
+            for (i, (_, x)) in self.queries.iter().enumerate() {
                 if new_score > threshold {
                     break;
                 }
-                new_score += calc_error(*x, self.query_cache[i], s.len());
+                new_score += calc_error(*x, self.query_cache[i], self.inv_query_size);
             }
             let adopt = new_score <= threshold;
 
@@ -263,23 +265,6 @@ impl MinoOptimizer {
     }
 }
 
-fn get_query_count(input: &Input) -> usize {
-    let n = input.n as f64;
-    let m = input.m as f64;
-    let eps = input.eps;
-    let dense = input.minos.iter().map(|mino| mino.len()).sum::<usize>() as f64 / (n * n);
-
-    let pred = query_count_linear_regression(n, m, eps, dense);
-
-    pred.round().max(1.) as usize
-}
-
-fn get_query_size(input: &Input, param: &Param) -> usize {
-    const EPS_MAX: f64 = 0.2;
-    let a = (param.max_k - param.min_k) / EPS_MAX.powf(param.k_p);
-    (input.n as f64 * (param.max_k - input.eps.powf(param.k_p) * a)).round() as usize
-}
-
 fn calc_v_prob(
     top_k: usize,
     cands: &Vec<(f64, Vec<Vec<usize>>)>,
@@ -382,21 +367,12 @@ fn output_answer(
     }
 }
 
-fn get_steps(param: &Param) -> Vec<f64> {
-    let mut steps = Vec::with_capacity(param.step_cnt);
-    let step_width = (param.end_step - param.start_step) / (param.step_cnt - 1) as f64;
-    for i in 0..param.step_cnt {
-        steps.push(param.start_step + i as f64 * step_width);
-    }
-    steps
-}
-
 fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Option<Answer>) {
     const OUT_LIM: usize = 5;
     let time_limit = if cfg!(feature = "local") { 2.0 } else { 2.8 };
     let query_limit = input.n.pow(2) * 2;
     let top_k = 100;
-    let query_size = get_query_size(input, param);
+    let query_size = param.get_query_size(input);
     eprintln!("query_size: {}", query_size);
 
     let mut queries = vec![];
@@ -404,11 +380,13 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
     let mut cands: Vec<(f64, Vec<Vec<usize>>)> = vec![];
     let mut answer_set: HashSet<Vec<(usize, usize)>> = HashSet::new();
 
-    let base_query_count = get_query_count(input).clamp(10, query_limit - OUT_LIM);
+    let base_query_count = param
+        .get_query_count(input)
+        .clamp(10, query_limit - OUT_LIM);
     eprintln!("base_query_count = {}", base_query_count);
 
     // TODO: base_query_countごとに調整する
-    let steps = get_steps(param);
+    let steps = param.get_steps();
     let steps: Vec<f64> = steps
         .into_iter()
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
@@ -437,7 +415,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
             for &(i, j) in s.iter() {
                 v_sum += v[i][j] as f64;
             }
-            *err += calc_error(v_sum, obs_x, s.len());
+            *err += calc_error(v_sum, obs_x, optimizer.inv_query_size);
         }
         queries.push((s, obs_x));
 
@@ -510,6 +488,34 @@ struct Param {
     out_step_size: f64,
     start_temp_coef: f64,
     end_temp_coef: f64,
+}
+
+impl Param {
+    fn get_steps(&self) -> Vec<f64> {
+        let mut steps = Vec::with_capacity(self.step_cnt);
+        let step_width = (self.end_step - self.start_step) / (self.step_cnt - 1) as f64;
+        for i in 0..self.step_cnt {
+            steps.push(self.start_step + i as f64 * step_width);
+        }
+        steps
+    }
+
+    fn get_query_count(&self, input: &Input) -> usize {
+        let n = input.n as f64;
+        let m = input.m as f64;
+        let eps = input.eps;
+        let dense = input.minos.iter().map(|mino| mino.len()).sum::<usize>() as f64 / (n * n);
+
+        let pred = query_count_linear_regression(n, m, eps, dense);
+
+        pred.round().max(1.) as usize
+    }
+
+    fn get_query_size(&self, input: &Input) -> usize {
+        const EPS_MAX: f64 = 0.2;
+        let a = (self.max_k - self.min_k) / EPS_MAX.powf(self.k_p);
+        (input.n as f64 * (self.max_k - input.eps.powf(self.k_p) * a)).round() as usize
+    }
 }
 
 fn load_params() -> Param {
