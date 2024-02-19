@@ -486,3 +486,4 @@ answers_set: HashSet<Vec<Vec<usize>>>,
 4. クエリサイズ
 
 - extremeの対策
+- 保守的なやつも投げてみる

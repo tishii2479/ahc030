@@ -50,11 +50,17 @@ struct MinoOptimizer {
 }
 
 impl MinoOptimizer {
-    fn new(input: &Input) -> MinoOptimizer {
-        let delta_max_dist = 2; // :param
+    fn new(param: &Param, input: &Input) -> MinoOptimizer {
         let input_util = InputUtility {
-            delta_duplicates: get_weighted_delta_using_duplication(delta_max_dist, &input),
-            delta_neighbors: get_weighted_delta_using_neighbors(delta_max_dist),
+            delta_duplicates: get_weighted_delta_using_duplication(
+                param.delta_max_dist,
+                param.duplicate_min_d,
+                &input,
+            ),
+            delta_neighbors: get_weighted_delta_using_neighbors(
+                param.delta_max_dist,
+                param.neighbor_p,
+            ),
             mino_range: get_mino_range(&input),
         };
         let mino_pos = {
@@ -96,7 +102,7 @@ impl MinoOptimizer {
         self.queries.extend(queries);
     }
 
-    fn optimize(&mut self, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
+    fn optimize(&mut self, param: &Param, time_limit: f64) -> Vec<(f64, Vec<(usize, usize)>)> {
         let mut mino_is = Vec::with_capacity(3);
         let mut next_mino_poss = Vec::with_capacity(3);
 
@@ -105,8 +111,8 @@ impl MinoOptimizer {
         //     / (1. - 2. * self.input.eps).powf(2.))
         // .sqrt();
         let b = self.input.n as f64 * self.queries.len() as f64;
-        let start_temp = b / 1e3; // :param
-        let end_temp = b / 1e5; // :param
+        let start_temp = b / param.start_temp_coef;
+        let end_temp = b / param.end_temp_coef;
 
         let mut iteration = 0;
 
@@ -408,14 +414,17 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         .filter(|x| x * (base_query_count as f64) < query_limit as f64)
         .collect();
     let step_sum: f64 = steps.iter().map(|&x| x).sum();
-    let step_ratio: Vec<f64> = steps.iter().map(|&x| x / step_sum).collect(); // :param
+    let step_ratio: Vec<f64> = steps
+        .iter()
+        .map(|&x| x.powf(param.step_p) / step_sum)
+        .collect();
     let steps: Vec<usize> = steps
         .into_iter()
-        .map(|x| (x * base_query_count as f64).round() as usize)
+        .map(|x| (x.powf(param.step_p) * base_query_count as f64).round() as usize)
         .collect();
     let mut next_step = 0;
 
-    let mut optimizer = MinoOptimizer::new(&input);
+    let mut optimizer = MinoOptimizer::new(param, input);
     let mut prob_v = calc_v_prob(top_k, &cands, param, input);
 
     while next_step < steps.len() {
@@ -447,7 +456,8 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         optimizer.add_queries(queries);
         queries = vec![];
 
-        let mut new_cands = optimizer.optimize(time::elapsed_seconds() + optimize_time_limit);
+        let mut new_cands =
+            optimizer.optimize(param, time::elapsed_seconds() + optimize_time_limit);
         new_cands.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         // 候補の追加
@@ -466,8 +476,7 @@ fn solve(interactor: &mut Interactor, input: &Input, param: &Param, answer: &Opt
         let out_cnt = if is_final_step {
             1000
         } else {
-            // :param
-            ((interactor.query_count as f64 / 100.).ceil() as usize).min(OUT_LIM)
+            ((interactor.query_count as f64 / param.out_step_size).ceil() as usize).min(OUT_LIM)
         };
         output_answer(
             out_cnt,
@@ -494,6 +503,13 @@ struct Param {
     v_prob_min_var: f64,
     p_max: f64,
     p_min: f64,
+    delta_max_dist: i64,
+    neighbor_p: f64,
+    duplicate_min_d: usize,
+    step_p: f64,
+    out_step_size: f64,
+    start_temp_coef: f64,
+    end_temp_coef: f64,
 }
 
 fn load_params() -> Param {
@@ -512,6 +528,13 @@ fn load_params() -> Param {
             v_prob_min_var: args[8].parse().unwrap(),
             p_max: args[9].parse().unwrap(),
             p_min: args[10].parse().unwrap(),
+            delta_max_dist: args[11].parse().unwrap(),
+            neighbor_p: args[12].parse().unwrap(),
+            duplicate_min_d: args[13].parse().unwrap(),
+            step_p: args[14].parse().unwrap(),
+            out_step_size: args[15].parse().unwrap(),
+            start_temp_coef: args[16].parse().unwrap(),
+            end_temp_coef: args[17].parse().unwrap(),
         }
     } else {
         Param {
@@ -525,6 +548,13 @@ fn load_params() -> Param {
             v_prob_min_var: 0.027,
             p_max: 0.989,
             p_min: 0.421,
+            delta_max_dist: 2,
+            neighbor_p: 2.,
+            duplicate_min_d: 1,
+            step_p: 1.,
+            out_step_size: 100.,
+            start_temp_coef: 1e3,
+            end_temp_coef: 1e5,
         }
     }
 }

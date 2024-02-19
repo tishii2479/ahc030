@@ -126,9 +126,8 @@ pub fn calc_error(y: f64, y_hat: f64, _s_len: usize) -> f64 {
     (y - y_hat).powf(2.) / _s_len as f64
 }
 
-pub fn get_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
+pub fn get_weighted_delta_using_neighbors(max_dist: i64, p: f64) -> Vec<(i64, i64)> {
     let mut delta = vec![];
-    let p = 2.; // :param
     for (di, dj) in iproduct!(-max_dist..=max_dist, -max_dist..=max_dist) {
         let dist = ((i64::abs(di) + i64::abs(dj)) as f64).max(1.);
         let cnt = ((max_dist as f64 * 2.).powf(p) / dist.powf(p))
@@ -139,7 +138,11 @@ pub fn get_weighted_delta_using_neighbors(max_dist: i64) -> Vec<(i64, i64)> {
     delta
 }
 
-pub fn get_weighted_delta_using_duplication(max_dist: i64, input: &Input) -> Vec<Vec<(i64, i64)>> {
+pub fn get_weighted_delta_using_duplication(
+    max_dist: i64,
+    min_d: usize,
+    input: &Input,
+) -> Vec<Vec<(i64, i64)>> {
     let mut weighted_delta = vec![vec![]; input.m * input.m];
     for mino_i in 0..input.m {
         for mino_j in 0..input.m {
@@ -156,7 +159,8 @@ pub fn get_weighted_delta_using_duplication(max_dist: i64, input: &Input) -> Vec
                         duplicate_count += 1;
                     }
                 }
-                weighted_delta[mino_i * input.m + mino_j].extend(vec![d; duplicate_count.max(1)]);
+                weighted_delta[mino_i * input.m + mino_j]
+                    .extend(vec![d; duplicate_count.max(min_d)]);
             }
         }
     }
